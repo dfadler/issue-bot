@@ -1,0 +1,33 @@
+name: "issue-bot"
+description: "File a GitHub issue from a PR comment by mentioning @dfadler-issue-bot, capturing the comment, its thread, and the related code."
+author: "dfadler"
+
+inputs:
+  mention:
+    description: "The mention string that triggers issue creation."
+    required: false
+    default: "@dfadler-issue-bot"
+  label:
+    description: "Label applied to filed issues (auto-created if missing). Set to an empty string to skip labeling."
+    required: false
+    default: "from-pr-comment"
+  github-token:
+    description: "Token used to read comments and create issues/labels."
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  filed:
+    description: "\"true\" if a new issue was filed, \"false\" otherwise (no mention, or an issue already covers this comment)."
+  issue-number:
+    description: "The number of the filed issue, if one was filed."
+  issue-url:
+    description: "The URL of the filed issue, or of the existing issue that already covers this comment."
+
+runs:
+  using: "node22"
+  main: "dist/index.js"
+
+branding:
+  icon: "file-plus"
+  color: "purple"
