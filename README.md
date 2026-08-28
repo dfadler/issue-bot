@@ -36,12 +36,26 @@ jobs:
       issues: write
       pull-requests: read
     steps:
-      - uses: dfadler/issue-bot@v1
+      - uses: dfadler/issue-bot@v1 # pin to a commit SHA instead — see note below
 ```
 
 The action itself checks whether the comment contains the mention (and, for
 `issue_comment`, whether it's actually on a PR rather than a plain issue) —
 you don't need an `if:` gate in the workflow.
+
+**Pin to a commit SHA, not `@v1` or `@main`.** A tag or branch is mutable —
+a security scanner (Semgrep's `github-actions-mutable-action-tag` rule, in
+particular) will flag it, and it's the same reason this repo's own CI
+requires every third-party action to be pinned. Use
+`dfadler/issue-bot@<commit-sha> # v1` instead.
+
+**A gotcha specific to `pull_request_review_comment`**: GitHub resolves
+that event's workflow definition from a snapshot tied to the pull request
+itself, not live off the default branch — unlike `issue_comment`, which
+always uses the default branch's current content. If you re-pin this
+action to a new commit, PRs opened *before* that change won't see it until
+their branch is updated (merge/rebase the default branch into them again).
+This is easy to mistake for the action silently failing to update.
 
 ### Inputs
 
