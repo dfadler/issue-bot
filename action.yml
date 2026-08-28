@@ -25,7 +25,7 @@ outputs:
     description: "The URL of the filed issue, or of the existing issue that already covers this comment."
 
 runs:
-  using: "node20"
+  using: "node24"
   main: "dist/index.js"
 
 branding:

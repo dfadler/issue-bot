@@ -47342,8 +47342,10 @@ async function fetchReviewThreadContext(octokit, owner, repo, prNumber, triggerC
         pull_number: prNumber,
         per_page: 100,
     });
+    const byId = new Map(allComments.map((c) => [c.id, c]));
+    const rootId = threadRootId(triggerCommentId, byId);
     const thread = collectThreadComments(triggerCommentId, allComments);
-    return thread
+    const conversation = thread
         .filter((comment) => comment.id !== triggerCommentId)
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
         .map((comment) => ({
@@ -47351,6 +47353,7 @@ async function fetchReviewThreadContext(octokit, owner, repo, prNumber, triggerC
         body: comment.body,
         createdAt: comment.created_at,
     }));
+    return { rootId, conversation };
 }
 const RECENT_ISSUE_COMMENT_LIMIT = 10;
 async function fetchRecentIssueComments(octokit, owner, repo, prNumber, triggerCommentId) {
@@ -47413,9 +47416,9 @@ async function run() {
             core.info("No mention found; skipping.");
             return;
         }
-        const conversation = await fetchReviewThreadContext(octokit, context.repo.owner, context.repo.repo, pullRequest.number, comment.id);
+        const { rootId, conversation } = await fetchReviewThreadContext(octokit, context.repo.owner, context.repo.repo, pullRequest.number, comment.id);
         const trigger = {
-            id: comment.id,
+            id: rootId,
             kind: "review",
             author: comment.user?.login ?? "unknown",
             body: comment.body,

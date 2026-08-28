@@ -43,7 +43,7 @@ export async function run(): Promise<void> {
       core.info("No mention found; skipping.");
       return;
     }
-    const conversation = await fetchReviewThreadContext(
+    const { rootId, conversation } = await fetchReviewThreadContext(
       octokit,
       context.repo.owner,
       context.repo.repo,
@@ -51,7 +51,7 @@ export async function run(): Promise<void> {
       comment.id,
     );
     const trigger: TriggerComment = {
-      id: comment.id,
+      id: rootId,
       kind: "review",
       author: comment.user?.login ?? "unknown",
       body: comment.body,

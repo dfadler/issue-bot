@@ -45,21 +45,34 @@ type ReviewComment = {
   created_at: string;
 };
 
+export type ReviewThreadContext = {
+  /**
+   * The thread's root comment id - used as the dedup/backlink identity
+   * instead of the triggering comment's own id, since every reply to the
+   * same thread has a different id. Without this, mentioning the bot twice
+   * in one thread would file two issues instead of deduping.
+   */
+  rootId: number;
+  conversation: ConversationEntry[];
+};
+
 export async function fetchReviewThreadContext(
   octokit: Octokit,
   owner: string,
   repo: string,
   prNumber: number,
   triggerCommentId: number,
-): Promise<ConversationEntry[]> {
+): Promise<ReviewThreadContext> {
   const allComments: ReviewComment[] = await octokit.paginate(octokit.rest.pulls.listReviewComments, {
     owner,
     repo,
     pull_number: prNumber,
     per_page: 100,
   });
+  const byId = new Map<number, ThreadableComment>(allComments.map((c) => [c.id, c]));
+  const rootId = threadRootId(triggerCommentId, byId);
   const thread = collectThreadComments(triggerCommentId, allComments);
-  return thread
+  const conversation = thread
     .filter((comment) => comment.id !== triggerCommentId)
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .map((comment) => ({
@@ -67,6 +80,7 @@ export async function fetchReviewThreadContext(
       body: comment.body,
       createdAt: comment.created_at,
     }));
+  return { rootId, conversation };
 }
 
 type IssueComment = {
