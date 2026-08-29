@@ -10,7 +10,8 @@
     "build": "ncc build src/index.ts -o dist --minify",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:action-runtime": "node scripts/check-action-runtime.mjs"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
