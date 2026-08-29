@@ -3,40 +3,6 @@ import type { Octokit } from "./octokit.js";
 export type BacklinkKind = "review" | "issue";
 
 /**
- * Only the fields `fileIssueFromComment` actually reads off a listed issue -
- * narrower than the full generated issue shape so a test fake doesn't need
- * to fill in every field GitHub's API happens to return. The real response
- * type is a superset of this and remains assignable wherever a real octokit
- * instance is used.
- */
-type OpenIssueFromApi = { number: number; html_url: string; body?: string | null };
-type ListForRepoParams = Parameters<Octokit["rest"]["issues"]["listForRepo"]>[0];
-type ListForRepoMethod = (params?: ListForRepoParams) => Promise<{ data: OpenIssueFromApi[] }>;
-
-/**
- * Narrowed to just the octokit surface this module actually calls, rather
- * than the full generated `Octokit` type (whose REST methods also carry
- * `.defaults`/`.endpoint`, and whose `paginate` also carries `.iterator`) -
- * lets tests build a plain fake object without a type assertion (banned by
- * `@typescript-eslint/consistent-type-assertions`), while the real octokit
- * instance (a superset) is still assignable at the real call site in
- * index.ts.
- */
-export type FollowUpOctokit = {
-  paginate: (request: ListForRepoMethod, parameters?: ListForRepoParams) => Promise<OpenIssueFromApi[]>;
-  rest: {
-    issues: {
-      listForRepo: ListForRepoMethod;
-      getLabel: (params: Parameters<Octokit["rest"]["issues"]["getLabel"]>[0]) => Promise<unknown>;
-      createLabel: (params: Parameters<Octokit["rest"]["issues"]["createLabel"]>[0]) => Promise<unknown>;
-      create: (
-        params: Parameters<Octokit["rest"]["issues"]["create"]>[0],
-      ) => Promise<{ data: { number: number; html_url: string } }>;
-    };
-  };
-};
-
-/**
  * The exact permalink fragment GitHub itself generates for a comment -
  * used both as the back-link in a filed issue's body and as the dedup
  * marker searched for in every open issue's body. Ported from
@@ -159,7 +125,7 @@ function isNotFoundError(error: unknown): boolean {
  * own - auto-creating it is friendlier than failing.
  */
 export async function ensureLabelExists(
-  octokit: FollowUpOctokit,
+  octokit: Octokit,
   owner: string,
   repo: string,
   label: string,
@@ -175,7 +141,7 @@ export async function ensureLabelExists(
 }
 
 export type FileIssueParams = {
-  octokit: FollowUpOctokit;
+  octokit: Octokit;
   repoFullName: string;
   prNumber: number;
   comment: TriggerComment;

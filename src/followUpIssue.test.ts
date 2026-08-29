@@ -5,10 +5,16 @@ import {
   buildIssueTitle,
   fileIssueFromComment,
   findExistingIssue,
-  type FollowUpOctokit,
   type OpenIssueSummary,
   type TriggerComment,
 } from "./followUpIssue.js";
+import type { Octokit } from "./octokit.js";
+
+function notImplemented(name: string): () => never {
+  return () => {
+    throw new Error(`fake octokit: ${name} was not expected to be called in this test`);
+  };
+}
 
 describe("backlinkUrl", () => {
   it("builds a discussion permalink for review comments", () => {
@@ -184,15 +190,19 @@ describe("fileIssueFromComment", () => {
    * calls `paginate` instead of `listForRepo` directly. Regression test for
    * https://github.com/dfadler/issue-bot/issues/1.
    */
-  function createFakeOctokit(openIssues: FakeIssue[]): FollowUpOctokit {
+  function createFakeOctokit(openIssues: FakeIssue[]): Octokit {
+    // `paginate` stays fully generic (matching the real interface) and just
+    // re-calls `route` with the same params each time - `listForRepo` below
+    // tracks which page it's on itself via a closure counter, since the
+    // params type it's called with (owner/repo/state/per_page) has nowhere
+    // to carry a page number without narrowing the generic `P` in a way
+    // that isn't type-safe here.
+    let listForRepoCallCount = 0;
     return {
-      paginate: async (request, parameters) => {
-        if (parameters === undefined) {
-          throw new Error("fake octokit.paginate requires parameters in this test");
-        }
-        const results: Awaited<ReturnType<typeof request>>["data"] = [];
-        for (let page = 1; page <= 1000; page += 1) {
-          const { data } = await request({ ...parameters, page });
+      async paginate<T, P>(route: (params: P) => Promise<{ data: T[] }>, params: P): Promise<T[]> {
+        const results: T[] = [];
+        for (let i = 0; i < 1000; i += 1) {
+          const { data } = await route(params);
           results.push(...data);
           if (data.length < perPage) {
             break;
@@ -201,10 +211,14 @@ describe("fileIssueFromComment", () => {
         return results;
       },
       rest: {
+        pulls: {
+          listReviewComments: notImplemented("pulls.listReviewComments"),
+        },
         issues: {
-          listForRepo: async (params) => {
-            const page = params?.page ?? 1;
-            const start = (page - 1) * perPage;
+          listComments: notImplemented("issues.listComments"),
+          listForRepo: async () => {
+            listForRepoCallCount += 1;
+            const start = (listForRepoCallCount - 1) * perPage;
             return { data: openIssues.slice(start, start + perPage) };
           },
           getLabel: async () => undefined,
