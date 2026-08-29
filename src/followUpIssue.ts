@@ -166,7 +166,7 @@ export async function fileIssueFromComment(params: FileIssueParams): Promise<Fil
     return { filed: false, reason: `Malformed repoFullName: ${params.repoFullName}` };
   }
 
-  const { data: openIssues } = await params.octokit.rest.issues.listForRepo({
+  const openIssues = await params.octokit.paginate(params.octokit.rest.issues.listForRepo, {
     owner,
     repo,
     state: "open",

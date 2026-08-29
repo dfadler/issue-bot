@@ -3,9 +3,18 @@ import {
   backlinkUrl,
   buildIssueBody,
   buildIssueTitle,
+  fileIssueFromComment,
   findExistingIssue,
   type OpenIssueSummary,
+  type TriggerComment,
 } from "./followUpIssue.js";
+import type { Octokit } from "./octokit.js";
+
+function notImplemented(name: string): () => never {
+  return () => {
+    throw new Error(`fake octokit: ${name} was not expected to be called in this test`);
+  };
+}
 
 describe("backlinkUrl", () => {
   it("builds a discussion permalink for review comments", () => {
@@ -163,5 +172,120 @@ describe("buildIssueBody", () => {
       conversation: [],
     });
     expect(body).toContain(backlinkUrl("owner/repo", 1, "review", 7));
+  });
+});
+
+describe("fileIssueFromComment", () => {
+  const repoFullName = "owner/repo";
+  const prNumber = 42;
+  const perPage = 100;
+
+  type FakeIssue = { number: number; html_url: string; body: string | null };
+
+  /**
+   * A fake octokit whose `listForRepo` only ever returns one 100-item page
+   * at a time - `paginate` walks pages the same way the real
+   * `@octokit/plugin-paginate-rest` does, so this only returns every issue
+   * (including ones past the first page) if `fileIssueFromComment` actually
+   * calls `paginate` instead of `listForRepo` directly. Regression test for
+   * https://github.com/dfadler/issue-bot/issues/1.
+   */
+  function createFakeOctokit(openIssues: FakeIssue[]): Octokit {
+    // `paginate` stays fully generic (matching the real interface) and just
+    // re-calls `route` with the same params each time - `listForRepo` below
+    // tracks which page it's on itself via a closure counter, since the
+    // params type it's called with (owner/repo/state/per_page) has nowhere
+    // to carry a page number without narrowing the generic `P` in a way
+    // that isn't type-safe here.
+    let listForRepoCallCount = 0;
+    return {
+      async paginate<T, P>(route: (params: P) => Promise<{ data: T[] }>, params: P): Promise<T[]> {
+        const results: T[] = [];
+        for (let i = 0; i < 1000; i += 1) {
+          const { data } = await route(params);
+          results.push(...data);
+          if (data.length < perPage) {
+            break;
+          }
+        }
+        return results;
+      },
+      rest: {
+        pulls: {
+          listReviewComments: notImplemented("pulls.listReviewComments"),
+        },
+        issues: {
+          listComments: notImplemented("issues.listComments"),
+          listForRepo: async () => {
+            listForRepoCallCount += 1;
+            const start = (listForRepoCallCount - 1) * perPage;
+            return { data: openIssues.slice(start, start + perPage) };
+          },
+          getLabel: async () => undefined,
+          createLabel: async () => undefined,
+          create: async () => ({
+            data: { number: 9999, html_url: `https://github.com/${repoFullName}/issues/9999` },
+          }),
+        },
+      },
+    };
+  }
+
+  function buildComment(id: number): TriggerComment {
+    return {
+      id,
+      kind: "issue",
+      author: "octocat",
+      body: "@dfadler-issue-bot this needs its own issue",
+      htmlUrl: `https://github.com/${repoFullName}/pull/${prNumber}#issuecomment-${id}`,
+      createdAt: "2026-01-01T00:00:00Z",
+    };
+  }
+
+  it("finds a backlinked issue beyond the first 100-item page (regression for #1)", async () => {
+    const targetCommentId = 555;
+    const backlinkBody = `Filed from ${backlinkUrl(repoFullName, prNumber, "issue", targetCommentId)}.`;
+    // 150 open issues so the match (at index 120, i.e. issue #121) sits on
+    // the second page of a per_page=100 listing.
+    const openIssues: FakeIssue[] = Array.from({ length: 150 }, (_, i) => ({
+      number: i + 1,
+      html_url: `https://github.com/${repoFullName}/issues/${i + 1}`,
+      body: i === 120 ? backlinkBody : "unrelated",
+    }));
+
+    const result = await fileIssueFromComment({
+      octokit: createFakeOctokit(openIssues),
+      repoFullName,
+      prNumber,
+      comment: buildComment(targetCommentId),
+      conversation: [],
+      mention: "@dfadler-issue-bot",
+      label: "",
+    });
+
+    expect(result.filed).toBe(false);
+    if (!result.filed) {
+      expect(result.existingIssue?.number).toBe(121);
+    }
+  });
+
+  it("still files a new issue when none of the (many) open issues cover the comment", async () => {
+    const openIssues: FakeIssue[] = Array.from({ length: 150 }, (_, i) => ({
+      number: i + 1,
+      html_url: `https://github.com/${repoFullName}/issues/${i + 1}`,
+      body: "unrelated",
+    }));
+
+    const result = await fileIssueFromComment({
+      octokit: createFakeOctokit(openIssues),
+      repoFullName,
+      prNumber,
+      comment: buildComment(777),
+      conversation: [],
+      mention: "@dfadler-issue-bot",
+      label: "",
+    });
+
+    expect(result.filed).toBe(true);
   });
 });
