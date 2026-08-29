@@ -42187,6 +42187,7 @@ var __webpack_exports__ = {};
 
 // EXPORTS
 __nccwpck_require__.d(__webpack_exports__, {
+  N: () => (/* binding */ handleEvent),
   e: () => (/* binding */ run)
 });
 
@@ -47395,26 +47396,29 @@ function reportResult(result) {
         core.setOutput("issue-url", result.existingIssue.url);
     }
 }
-async function run() {
-    const mention = core.getInput("mention") || "@dfadler-issue-bot";
-    const label = core.getInput("label");
-    const token = core.getInput("github-token");
-    if (token.length === 0) {
-        core.setFailed("No github-token input provided.");
-        return;
-    }
-    const octokit = getOctokit(token);
-    const { /* context */ "_": context } = github_namespaceObject;
+/**
+ * The event-dispatch core: branches on the webhook event type, validates
+ * the payload shape, checks for the trigger mention, gathers thread
+ * context, and files (or dedups against) a follow-up issue. Pulled out of
+ * `run()` so it's directly testable with a fake `Octokit` and a synthetic
+ * `context` - without needing to touch `@actions/core`/`@actions/github`'s
+ * env-dependent globals.
+ *
+ * Returns `null` for every skip path (no mention, not a PR, unrecognized
+ * payload shape, unsupported event) and the `FileIssueResult` otherwise.
+ */
+async function handleEvent(octokit, context, options) {
+    const { mention, label } = options;
     const repoFullName = `${context.repo.owner}/${context.repo.repo}`;
     if (context.eventName === "pull_request_review_comment") {
         if (!isPullRequestReviewCommentEventPayload(context.payload)) {
             core.info("Unrecognized pull_request_review_comment payload shape; skipping.");
-            return;
+            return null;
         }
         const { comment, pull_request: pullRequest } = context.payload;
         if (!hasMention(comment.body, mention)) {
             core.info("No mention found; skipping.");
-            return;
+            return null;
         }
         const { rootId, conversation } = await fetchReviewThreadContext(octokit, context.repo.owner, context.repo.repo, pullRequest.number, comment.id);
         const trigger = {
@@ -47427,7 +47431,7 @@ async function run() {
             path: comment.path,
             diffHunk: comment.diff_hunk,
         };
-        const result = await fileIssueFromComment({
+        return fileIssueFromComment({
             octokit,
             repoFullName,
             prNumber: pullRequest.number,
@@ -47436,22 +47440,20 @@ async function run() {
             mention,
             label,
         });
-        reportResult(result);
-        return;
     }
     if (context.eventName === "issue_comment") {
         if (!isIssueCommentEventPayload(context.payload)) {
             core.info("Unrecognized issue_comment payload shape; skipping.");
-            return;
+            return null;
         }
         const { comment, issue } = context.payload;
         if (issue.pull_request === undefined) {
             core.info("Comment is not on a pull request; skipping.");
-            return;
+            return null;
         }
         if (!hasMention(comment.body, mention)) {
             core.info("No mention found; skipping.");
-            return;
+            return null;
         }
         const conversation = await fetchRecentIssueComments(octokit, context.repo.owner, context.repo.repo, issue.number, comment.id);
         const trigger = {
@@ -47462,7 +47464,7 @@ async function run() {
             htmlUrl: comment.html_url,
             createdAt: comment.created_at,
         };
-        const result = await fileIssueFromComment({
+        return fileIssueFromComment({
             octokit,
             repoFullName,
             prNumber: issue.number,
@@ -47471,14 +47473,29 @@ async function run() {
             mention,
             label,
         });
-        reportResult(result);
-        return;
     }
     core.info(`Unsupported event: ${context.eventName}`);
+    return null;
+}
+async function run() {
+    const mention = core.getInput("mention") || "@dfadler-issue-bot";
+    const label = core.getInput("label");
+    const token = core.getInput("github-token");
+    if (token.length === 0) {
+        core.setFailed("No github-token input provided.");
+        return;
+    }
+    const octokit = getOctokit(token);
+    const { /* context */ "_": context } = github_namespaceObject;
+    const result = await handleEvent(octokit, context, { mention, label });
+    if (result) {
+        reportResult(result);
+    }
 }
 run().catch((error) => {
     core.setFailed(error instanceof Error ? error.message : String(error));
 });
 
+var __webpack_exports__handleEvent = __webpack_exports__.N;
 var __webpack_exports__run = __webpack_exports__.e;
-export { __webpack_exports__run as run };
+export { __webpack_exports__handleEvent as handleEvent, __webpack_exports__run as run };
