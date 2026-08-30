@@ -25,9 +25,9 @@ name: issue-bot
 
 on:
   pull_request_review_comment:
-    types: [created]
+    types: [created, edited]
   issue_comment:
-    types: [created]
+    types: [created, edited]
 
 jobs:
   issue-bot:
@@ -42,6 +42,14 @@ jobs:
 The action itself checks whether the comment contains the mention (and, for
 `issue_comment`, whether it's actually on a PR rather than a plain issue) —
 you don't need an `if:` gate in the workflow.
+
+Both events also trigger on `edited`, so posting a comment and *then* editing
+it to add the mention still files an issue — not just mentioning it at
+creation time. This is safe to re-run: dedup is keyed by the triggering
+comment/thread-root's backlink URL, not by which event fired, so an edit
+that doesn't change the mention (or a second edit of an already-filed
+comment) just no-ops against the existing issue instead of filing a
+duplicate.
 
 **Pin to a commit SHA, not `@v1` or `@main`.** A tag or branch is mutable —
 a security scanner (Semgrep's `github-actions-mutable-action-tag` rule, in
