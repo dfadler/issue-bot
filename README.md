@@ -1,7 +1,7 @@
 # issue-bot
 
 A GitHub Action that files a standalone issue from a pull request comment.
-Mention `@dfadler-issue-bot` anywhere in a PR comment (a review comment on a
+Mention `@issue-bot` anywhere in a PR comment (a review comment on a
 diff line, or a general PR conversation comment) and it files an issue
 capturing:
 
@@ -67,11 +67,11 @@ This is easy to mistake for the action silently failing to update.
 
 ### Inputs
 
-| Input          | Default                | Description                                                                 |
-| -------------- | ----------------------- | ----------------------------------------------------------------------------- |
-| `mention`      | `@dfadler-issue-bot`    | The mention string that triggers issue creation.                              |
-| `label`        | `from-pr-comment`       | Label applied to filed issues (auto-created if it doesn't exist). Empty to skip. |
-| `github-token` | `${{ github.token }}`  | Token used to read comments and create issues/labels.                         |
+| Input          | Default                | Description                                                                       |
+| -------------- | ----------------------- | ---------------------------------------------------------------------------------- |
+| `mention`      | `@issue-bot`            | The mention string that triggers issue creation.                                  |
+| `label`        | `from-pr-comment`       | Label applied to filed issues (auto-created if it doesn't exist). Empty to skip.   |
+| `github-token` | `${{ github.token }}`  | Token used to read comments and create issues/labels.                             |
 
 ### Outputs
 

@@ -87,19 +87,19 @@ describe("findExistingIssue", () => {
 
 describe("buildIssueTitle", () => {
   it("strips the mention and truncates to 80 chars", () => {
-    const body = "@dfadler-issue-bot this needs its own tracking, the retry logic silently swallows the underlying error";
-    const title = buildIssueTitle(body, "@dfadler-issue-bot");
-    expect(title.startsWith("@dfadler-issue-bot")).toBe(false);
+    const body = "@issue-bot this needs its own tracking, the retry logic silently swallows the underlying error";
+    const title = buildIssueTitle(body, "@issue-bot");
+    expect(title.startsWith("@issue-bot")).toBe(false);
     expect(title.length).toBeLessThanOrEqual(80);
   });
 
   it("falls back to a default title when nothing is left after stripping the mention", () => {
-    expect(buildIssueTitle("@dfadler-issue-bot", "@dfadler-issue-bot")).toBe("Follow-up from PR comment");
+    expect(buildIssueTitle("@issue-bot", "@issue-bot")).toBe("Follow-up from PR comment");
   });
 
   it("uses the first non-empty line", () => {
-    const body = "\n\n@dfadler-issue-bot fix this\nmore detail below";
-    expect(buildIssueTitle(body, "@dfadler-issue-bot")).toBe("fix this");
+    const body = "\n\n@issue-bot fix this\nmore detail below";
+    expect(buildIssueTitle(body, "@issue-bot")).toBe("fix this");
   });
 });
 
@@ -110,7 +110,7 @@ describe("buildIssueBody", () => {
         id: 1,
         kind: "review",
         author: "octocat",
-        body: "@dfadler-issue-bot look at this",
+        body: "@issue-bot look at this",
         htmlUrl: "https://github.com/owner/repo/pull/1#discussion_r1",
         createdAt: "2026-01-01T00:00:00Z",
         path: "src/foo.ts",
@@ -128,7 +128,7 @@ describe("buildIssueBody", () => {
         id: 2,
         kind: "issue",
         author: "octocat",
-        body: "@dfadler-issue-bot general comment",
+        body: "@issue-bot general comment",
         htmlUrl: "https://github.com/owner/repo/pull/1#issuecomment-2",
         createdAt: "2026-01-01T00:00:00Z",
       },
@@ -145,7 +145,7 @@ describe("buildIssueBody", () => {
         id: 1,
         kind: "review",
         author: "octocat",
-        body: "@dfadler-issue-bot look at this",
+        body: "@issue-bot look at this",
         htmlUrl: "https://github.com/owner/repo/pull/1#discussion_r1",
         createdAt: "2026-01-01T00:00:00Z",
       },
@@ -163,7 +163,7 @@ describe("buildIssueBody", () => {
         id: 7,
         kind: "review",
         author: "octocat",
-        body: "@dfadler-issue-bot look at this",
+        body: "@issue-bot look at this",
         htmlUrl: "https://github.com/owner/repo/pull/1#discussion_r7",
         createdAt: "2026-01-01T00:00:00Z",
       },
@@ -236,7 +236,7 @@ describe("fileIssueFromComment", () => {
       id,
       kind: "issue",
       author: "octocat",
-      body: "@dfadler-issue-bot this needs its own issue",
+      body: "@issue-bot this needs its own issue",
       htmlUrl: `https://github.com/${repoFullName}/pull/${prNumber}#issuecomment-${id}`,
       createdAt: "2026-01-01T00:00:00Z",
     };
@@ -259,7 +259,7 @@ describe("fileIssueFromComment", () => {
       prNumber,
       comment: buildComment(targetCommentId),
       conversation: [],
-      mention: "@dfadler-issue-bot",
+      mention: "@issue-bot",
       label: "",
     });
 
@@ -282,7 +282,7 @@ describe("fileIssueFromComment", () => {
       prNumber,
       comment: buildComment(777),
       conversation: [],
-      mention: "@dfadler-issue-bot",
+      mention: "@issue-bot",
       label: "",
     });
 

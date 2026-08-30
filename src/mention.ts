@@ -3,7 +3,7 @@ function escapeRegExp(value: string): string {
 }
 
 /**
- * Boundary-anchored on the trailing side so "@dfadler-issue-bot2" (a
+ * Boundary-anchored on the trailing side so "@issue-bot2" (a
  * different, unrelated handle) doesn't false-positive against the
  * configured mention string.
  */
