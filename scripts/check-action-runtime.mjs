@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * Validates action.yml's `runs.using` value against the runtimes GitHub
- * Actions currently accepts. This is plain YAML config, so tsc/eslint/vitest
+ * Actions currently accepts. This is plain YAML config, so tsc/oxlint/vitest
  * never touch it — a bad value (e.g. "node22", which is not a real runtime)
  * only surfaces when a consumer workflow tries to load the action and fails
  * at runtime. Parsed with a regex instead of a YAML dependency: action.yml's
