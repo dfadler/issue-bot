@@ -16,6 +16,11 @@ capturing:
 No AI involved — the trigger is the literal mention, and the issue title is
 derived deterministically from the comment's first line.
 
+Only commenters with write access to the repo — GitHub's `OWNER`, `MEMBER`,
+or `COLLABORATOR` [author associations](https://docs.github.com/en/webhooks/webhook-events-and-payloads#issue_comment)
+— can trigger issue filing. A mention from anyone else (including past
+contributors without ongoing write access) is ignored.
+
 ## Usage
 
 Add a workflow like this to any repo you want it active on:

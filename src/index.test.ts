@@ -64,6 +64,7 @@ function reviewComment(overrides: Partial<ReviewCommentPayload> & { in_reply_to_
     path: "src/foo.ts",
     diff_hunk: "@@ -1,2 +1,2 @@\n-old\n+new",
     user: { login: "octocat" },
+    author_association: "OWNER",
     ...overrides,
   };
 }
@@ -82,6 +83,7 @@ function issueComment(overrides: Partial<IssueCommentPayload>): IssueCommentPayl
     html_url: "https://github.com/owner/repo/pull/3#issuecomment-1",
     created_at: "2026-01-01T00:00:00Z",
     user: { login: "octocat" },
+    author_association: "OWNER",
     ...overrides,
   };
 }
@@ -160,6 +162,58 @@ describe("handleEvent - pull_request_review_comment", () => {
 
     expect(result).toBeNull();
   });
+
+  it("returns null and files nothing when the mentioning commenter is not a collaborator", async () => {
+    const comment = reviewComment({ id: 1, author_association: "NONE" });
+    const create = vi.fn();
+    const octokit = createFakeOctokit({ create });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "pull_request_review_comment",
+      payload: { comment, pull_request: { number: 7 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(result).toBeNull();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("returns null for a past contributor without write access (CONTRIBUTOR)", async () => {
+    const comment = reviewComment({ id: 1, author_association: "CONTRIBUTOR" });
+    const create = vi.fn();
+    const octokit = createFakeOctokit({ create });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "pull_request_review_comment",
+      payload: { comment, pull_request: { number: 7 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(result).toBeNull();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("files an issue for a COLLABORATOR", async () => {
+    const comment = reviewComment({ id: 1, author_association: "COLLABORATOR" });
+    const octokit = createFakeOctokit({
+      listReviewComments: async () => ({ data: [comment] }),
+      create: async () => ({ data: createdIssue() }),
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "pull_request_review_comment",
+      payload: { comment, pull_request: { number: 7 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(result).toEqual({ filed: true, issueNumber: 99, issueUrl: createdIssue().html_url });
+  });
 });
 
 describe("handleEvent - issue_comment", () => {
@@ -212,6 +266,23 @@ describe("handleEvent - issue_comment", () => {
     const result = await handleEvent(octokit, context, OPTIONS);
 
     expect(result).toBeNull();
+  });
+
+  it("returns null and files nothing when the mentioning commenter is not a collaborator", async () => {
+    const comment = issueComment({ id: 5, body: `${MENTION} file this`, author_association: "NONE" });
+    const create = vi.fn();
+    const octokit = createFakeOctokit({ create });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "issue_comment",
+      payload: { comment, issue: { number: 3, pull_request: {} } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(result).toBeNull();
+    expect(create).not.toHaveBeenCalled();
   });
 });
 

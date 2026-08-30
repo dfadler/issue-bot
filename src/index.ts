@@ -1,5 +1,6 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
+import { isAuthorizedAssociation } from "./authorization.js";
 import { fileIssueFromComment, type FileIssueResult, type TriggerComment } from "./followUpIssue.js";
 import { hasMention } from "./mention.js";
 import type { Octokit } from "./octokit.js";
@@ -69,6 +70,10 @@ export async function handleEvent(
       core.info("No mention found; skipping.");
       return null;
     }
+    if (!isAuthorizedAssociation(comment.author_association)) {
+      core.info(`Comment author is not authorized to file issues (association: ${comment.author_association}); skipping.`);
+      return null;
+    }
     const { rootId, conversation } = await fetchReviewThreadContext(
       octokit,
       context.repo.owner,
@@ -109,6 +114,10 @@ export async function handleEvent(
     }
     if (!hasMention(comment.body, mention)) {
       core.info("No mention found; skipping.");
+      return null;
+    }
+    if (!isAuthorizedAssociation(comment.author_association)) {
+      core.info(`Comment author is not authorized to file issues (association: ${comment.author_association}); skipping.`);
       return null;
     }
     const conversation = await fetchRecentIssueComments(
