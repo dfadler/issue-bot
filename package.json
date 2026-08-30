@@ -7,7 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "build": "ncc build src/index.ts -o dist --minify",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --minify --outfile=dist/index.js --banner:js=\"import{createRequire as __createRequire}from'module';const require=__createRequire(import.meta.url);\"",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "test": "vitest run",
@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
-    "@vercel/ncc": "^0.45.0",
+    "esbuild": "^0.28.2",
     "oxlint": "^1.80.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
