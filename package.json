@@ -9,7 +9,7 @@
   "scripts": {
     "build": "ncc build src/index.ts -o dist --minify",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "oxlint .",
     "test": "vitest run",
     "check:action-runtime": "node scripts/check-action-runtime.mjs"
   },
@@ -19,10 +19,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.16.0",
-    "@typescript-eslint/eslint-plugin": "^8.47.0",
-    "@typescript-eslint/parser": "^8.47.0",
     "@vercel/ncc": "^0.45.0",
-    "eslint": "^9.39.0",
+    "oxlint": "^1.80.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   },

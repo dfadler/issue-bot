@@ -33,7 +33,7 @@ export type CreatedIssueApi = {
  * `ReturnType<typeof getOctokit>` (the full, deeply overloaded SDK client
  * type) so tests can pass a plain fake object literal implementing just
  * these methods - no type assertion needed to bridge the gap, which matters
- * because this repo's eslint config (`consistent-type-assertions`,
+ * because this repo's lint config (`consistent-type-assertions`,
  * `assertionStyle: "never"`) forbids `as` casts outright. The real Octokit
  * instance from `@actions/github` still satisfies this structurally, so
  * production call sites need no cast either.
