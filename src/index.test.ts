@@ -3,7 +3,7 @@ import { handleEvent, type EventContext } from "./index.js";
 import type { CreatedIssueApi, Octokit } from "./octokit.js";
 import type { IssueCommentPayload, ReviewCommentPayload } from "./payloads.js";
 
-const MENTION = "@dfadler-issue-bot";
+const MENTION = "@issue-bot";
 
 function notImplemented(name: string): () => never {
   return () => {

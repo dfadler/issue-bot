@@ -151,7 +151,7 @@ export async function handleEvent(
 }
 
 export async function run(): Promise<void> {
-  const mention = core.getInput("mention") || "@dfadler-issue-bot";
+  const mention = core.getInput("mention") || "@issue-bot";
   const label = core.getInput("label");
   const token = core.getInput("github-token");
   if (token.length === 0) {

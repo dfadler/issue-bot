@@ -1,12 +1,12 @@
-name: "issue-bot"
-description: "File a GitHub issue from a PR comment by mentioning @dfadler-issue-bot, capturing the comment, its thread, and the related code."
+name: "PR Comment Issue Bot"
+description: "File a GitHub issue from a PR comment by mentioning @issue-bot, capturing the comment, its thread, and the related code."
 author: "dfadler"
 
 inputs:
   mention:
     description: "The mention string that triggers issue creation."
     required: false
-    default: "@dfadler-issue-bot"
+    default: "@issue-bot"
   label:
     description: "Label applied to filed issues (auto-created if missing). Set to an empty string to skip labeling."
     required: false
