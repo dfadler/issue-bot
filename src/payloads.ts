@@ -1,3 +1,33 @@
+/**
+ * GitHub's own enum for a comment author's relationship to the repo - see
+ * https://docs.github.com/en/webhooks/webhook-events-and-payloads#issue_comment.
+ * `MANNEQUIN` covers a placeholder account from a repo import/migration.
+ */
+export type AuthorAssociation =
+  | "COLLABORATOR"
+  | "CONTRIBUTOR"
+  | "FIRST_TIMER"
+  | "FIRST_TIME_CONTRIBUTOR"
+  | "MANNEQUIN"
+  | "MEMBER"
+  | "NONE"
+  | "OWNER";
+
+const AUTHOR_ASSOCIATIONS: ReadonlySet<string> = new Set([
+  "COLLABORATOR",
+  "CONTRIBUTOR",
+  "FIRST_TIMER",
+  "FIRST_TIME_CONTRIBUTOR",
+  "MANNEQUIN",
+  "MEMBER",
+  "NONE",
+  "OWNER",
+]);
+
+function isAuthorAssociation(value: unknown): value is AuthorAssociation {
+  return typeof value === "string" && AUTHOR_ASSOCIATIONS.has(value);
+}
+
 export type ReviewCommentPayload = {
   id: number;
   body: string;
@@ -7,6 +37,7 @@ export type ReviewCommentPayload = {
   diff_hunk: string;
   in_reply_to_id?: number;
   user: { login: string } | null;
+  author_association: AuthorAssociation;
 };
 
 export type PullRequestReviewCommentEventPayload = {
@@ -20,6 +51,7 @@ export type IssueCommentPayload = {
   html_url: string;
   created_at: string;
   user: { login: string } | null;
+  author_association: AuthorAssociation;
 };
 
 export type IssueCommentEventPayload = {
@@ -79,6 +111,9 @@ export function isPullRequestReviewCommentEventPayload(
   if (!("user" in comment) || !isUserOrNull(comment.user)) {
     return false;
   }
+  if (!("author_association" in comment) || !isAuthorAssociation(comment.author_association)) {
+    return false;
+  }
   return true;
 }
 
@@ -112,6 +147,9 @@ export function isIssueCommentEventPayload(payload: unknown): payload is IssueCo
     return false;
   }
   if (!("user" in comment) || !isUserOrNull(comment.user)) {
+    return false;
+  }
+  if (!("author_association" in comment) || !isAuthorAssociation(comment.author_association)) {
     return false;
   }
   return true;
