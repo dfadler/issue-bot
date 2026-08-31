@@ -21,6 +21,13 @@ or `COLLABORATOR` [author associations](https://docs.github.com/en/webhooks/webh
 — can trigger issue filing. A mention from anyone else (including past
 contributors without ongoing write access) is ignored.
 
+Comments from bot accounts (`user.type === "Bot"`, e.g. CI review bots) never
+trigger issue filing, regardless of their author association. A bot narrating
+or quoting the mention string in prose — for example, a review bot explaining
+that a workflow doesn't override the `mention` input — is a well-formed,
+boundary-matched mention indistinguishable from a real invocation by text
+alone, so it's excluded by author type instead.
+
 ## Usage
 
 Add a workflow like this to any repo you want it active on:

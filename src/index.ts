@@ -4,7 +4,7 @@ import { isAuthorizedAssociation } from "./authorization.js";
 import { fileIssueFromComment, type FileIssueResult, type TriggerComment } from "./followUpIssue.js";
 import { hasMention } from "./mention.js";
 import type { Octokit } from "./octokit.js";
-import { isIssueCommentEventPayload, isPullRequestReviewCommentEventPayload } from "./payloads.js";
+import { isBotAuthor, isIssueCommentEventPayload, isPullRequestReviewCommentEventPayload } from "./payloads.js";
 import { fetchRecentIssueComments, fetchReviewThreadContext } from "./threadContext.js";
 
 /**
@@ -70,6 +70,10 @@ export async function handleEvent(
       core.info("No mention found; skipping.");
       return null;
     }
+    if (isBotAuthor(comment.user)) {
+      core.info(`Comment author is a bot account (${comment.user?.login ?? "unknown"}); skipping.`);
+      return null;
+    }
     if (!isAuthorizedAssociation(comment.author_association)) {
       core.info(`Comment author is not authorized to file issues (association: ${comment.author_association}); skipping.`);
       return null;
@@ -114,6 +118,10 @@ export async function handleEvent(
     }
     if (!hasMention(comment.body, mention)) {
       core.info("No mention found; skipping.");
+      return null;
+    }
+    if (isBotAuthor(comment.user)) {
+      core.info(`Comment author is a bot account (${comment.user?.login ?? "unknown"}); skipping.`);
       return null;
     }
     if (!isAuthorizedAssociation(comment.author_association)) {
