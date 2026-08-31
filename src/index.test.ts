@@ -197,6 +197,23 @@ describe("handleEvent - pull_request_review_comment", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it("returns null and files nothing when the mentioning commenter is a bot account (regression for issue-bot#29)", async () => {
+    const comment = reviewComment({ id: 1, author_association: "MEMBER", user: { login: "coderabbitai", type: "Bot" } });
+    const create = vi.fn();
+    const octokit = createFakeOctokit({ create });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "pull_request_review_comment",
+      payload: { comment, pull_request: { number: 7 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(result).toBeNull();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("files an issue for a COLLABORATOR", async () => {
     const comment = reviewComment({ id: 1, author_association: "COLLABORATOR" });
     const octokit = createFakeOctokit({
@@ -270,6 +287,32 @@ describe("handleEvent - issue_comment", () => {
 
   it("returns null and files nothing when the mentioning commenter is not a collaborator", async () => {
     const comment = issueComment({ id: 5, body: `${MENTION} file this`, author_association: "NONE" });
+    const create = vi.fn();
+    const octokit = createFakeOctokit({ create });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "issue_comment",
+      payload: { comment, issue: { number: 3, pull_request: {} } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(result).toBeNull();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("returns null and files nothing when the mentioning commenter is a bot account (regression for issue-bot#29)", async () => {
+    // Reproduces dfadler/issue-bot#29: a bot review comment (e.g. CodeRabbit)
+    // that merely quotes the mention string in prose should not file an
+    // issue, even though the text is a well-formed, boundary-matched mention
+    // and even if the bot happens to carry write-level author_association.
+    const comment = issueComment({
+      id: 5,
+      body: `the workflow doesn't override the \`mention\` input, e.g. ${MENTION}`,
+      author_association: "MEMBER",
+      user: { login: "coderabbitai", type: "Bot" },
+    });
     const create = vi.fn();
     const octokit = createFakeOctokit({ create });
 

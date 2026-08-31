@@ -28,6 +28,13 @@ function isAuthorAssociation(value: unknown): value is AuthorAssociation {
   return typeof value === "string" && AUTHOR_ASSOCIATIONS.has(value);
 }
 
+/**
+ * `type` is GitHub's own discriminator for the account kind (`"User"`,
+ * `"Bot"`, `"Organization"`, ...) - present on every real webhook payload,
+ * but optional here since older fixtures/tests may omit it.
+ */
+export type CommentAuthor = { login: string; type?: string } | null;
+
 export type ReviewCommentPayload = {
   id: number;
   body: string;
@@ -36,7 +43,7 @@ export type ReviewCommentPayload = {
   path: string;
   diff_hunk: string;
   in_reply_to_id?: number;
-  user: { login: string } | null;
+  user: CommentAuthor;
   author_association: AuthorAssociation;
 };
 
@@ -50,7 +57,7 @@ export type IssueCommentPayload = {
   body: string;
   html_url: string;
   created_at: string;
-  user: { login: string } | null;
+  user: CommentAuthor;
   author_association: AuthorAssociation;
 };
 
@@ -59,11 +66,25 @@ export type IssueCommentEventPayload = {
   issue: { number: number; pull_request?: unknown };
 };
 
-function isUserOrNull(value: unknown): value is { login: string } | null {
+function isUserOrNull(value: unknown): value is CommentAuthor {
   if (value === null) {
     return true;
   }
-  return typeof value === "object" && "login" in value && typeof value.login === "string";
+  if (typeof value !== "object" || !("login" in value) || typeof value.login !== "string") {
+    return false;
+  }
+  return !("type" in value) || value.type === undefined || typeof value.type === "string";
+}
+
+/**
+ * Bot-authored comments (e.g. CI review bots) commonly narrate or quote the
+ * mention string in prose - "the workflow doesn't override @issue-bot" -
+ * without intending to invoke this action. Skipping `type === "Bot"` by
+ * default avoids that class of false-positive filing regardless of the
+ * bot's own `author_association` (see dfadler/issue-bot#29).
+ */
+export function isBotAuthor(user: CommentAuthor): boolean {
+  return user?.type === "Bot";
 }
 
 /**
