@@ -90,6 +90,37 @@ This is easy to mistake for the action silently failing to update.
 | `label`        | `from-pr-comment`       | Label applied to filed issues (auto-created if it doesn't exist). Empty to skip.   |
 | `github-token` | `${{ github.token }}`  | Token used to read comments and create issues/labels.                             |
 
+#### Using a GitHub App token
+
+By default `github-token` falls back to the workflow's `github.token`
+(the repo-scoped `GITHUB_TOKEN`). To have issues/comments authored by a
+GitHub App identity instead — a distinct bot user, and org-level
+install/permission management — mint an installation token with
+[`actions/create-github-app-token`](https://github.com/actions/create-github-app-token)
+and pass it as `github-token`:
+
+```yaml
+- uses: actions/create-github-app-token@v1
+  id: app-token
+  with:
+    app-id: ${{ vars.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+- uses: dfadler/issue-bot@<commit-sha> # v1
+  with:
+    github-token: ${{ steps.app-token.outputs.token }}
+```
+
+The App installation needs the same permissions the default token needs:
+`issues: write` (create issues/labels) and `pull-requests: read` (read
+review comments and thread context).
+
+This only changes which token authenticates the API calls the action
+already makes — it does not turn issue-bot into a standalone GitHub App
+or add a webhook receiver (see
+[#28](https://github.com/dfadler/issue-bot/issues/28) for why that's a
+separate, larger decision).
+
 ### Outputs
 
 | Output         | Description                                                                |

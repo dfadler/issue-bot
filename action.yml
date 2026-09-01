@@ -12,7 +12,7 @@ inputs:
     required: false
     default: "from-pr-comment"
   github-token:
-    description: "Token used to read comments and create issues/labels."
+    description: "Token used to read comments and create issues/labels. Defaults to the repo-scoped GITHUB_TOKEN; pass a GitHub App installation token (e.g. via actions/create-github-app-token) for App-authored issues/comments — see README."
     required: false
     default: ${{ github.token }}
 
