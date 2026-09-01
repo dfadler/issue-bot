@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { backlinkUrl } from "./followUpIssue.js";
 import { handleEvent, type EventContext } from "./index.js";
 import type { CreatedIssueApi, Octokit } from "./octokit.js";
 import type { IssueCommentPayload, ReviewCommentPayload } from "./payloads.js";
@@ -25,6 +26,9 @@ function createFakeOctokit(overrides: {
   getLabel?: Octokit["rest"]["issues"]["getLabel"];
   createLabel?: Octokit["rest"]["issues"]["createLabel"];
   create?: Octokit["rest"]["issues"]["create"];
+  createComment?: Octokit["rest"]["issues"]["createComment"];
+  createForIssueComment?: Octokit["rest"]["reactions"]["createForIssueComment"];
+  createForPullRequestReviewComment?: Octokit["rest"]["reactions"]["createForPullRequestReviewComment"];
 }): Octokit {
   return {
     paginate: async (route, params) => {
@@ -41,6 +45,11 @@ function createFakeOctokit(overrides: {
         getLabel: overrides.getLabel ?? notImplemented("issues.getLabel"),
         createLabel: overrides.createLabel ?? notImplemented("issues.createLabel"),
         create: overrides.create ?? notImplemented("issues.create"),
+        createComment: overrides.createComment ?? (async () => undefined),
+      },
+      reactions: {
+        createForIssueComment: overrides.createForIssueComment ?? (async () => undefined),
+        createForPullRequestReviewComment: overrides.createForPullRequestReviewComment ?? (async () => undefined),
       },
     },
   };
@@ -231,6 +240,69 @@ describe("handleEvent - pull_request_review_comment", () => {
 
     expect(result).toEqual({ filed: true, issueNumber: 99, issueUrl: createdIssue().html_url });
   });
+
+  it("reacts with eyes on the triggering comment and replies with a success message once filed", async () => {
+    const comment = reviewComment({ id: 1, author_association: "COLLABORATOR" });
+    const createForPullRequestReviewComment = vi.fn(async () => undefined);
+    const createComment = vi.fn(async () => undefined);
+    const octokit = createFakeOctokit({
+      listReviewComments: async () => ({ data: [comment] }),
+      create: async () => ({ data: createdIssue({ number: 42, html_url: "https://github.com/owner/repo/issues/42" }) }),
+      createForPullRequestReviewComment,
+      createComment,
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "pull_request_review_comment",
+      payload: { comment, pull_request: { number: 7 } },
+    };
+
+    await handleEvent(octokit, context, OPTIONS);
+
+    expect(createForPullRequestReviewComment).toHaveBeenCalledWith(
+      expect.objectContaining({ comment_id: 1, content: "eyes" }),
+    );
+    expect(createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issue_number: 7,
+        body: expect.stringContaining("https://github.com/owner/repo/issues/42"),
+      }),
+    );
+  });
+
+  it("does not post a success comment when an existing issue already covers the thread", async () => {
+    const comment = reviewComment({
+      id: 1,
+      author_association: "COLLABORATOR",
+      body: `${MENTION} file this`,
+    });
+    const createComment = vi.fn(async () => undefined);
+    const octokit = createFakeOctokit({
+      listReviewComments: async () => ({ data: [comment] }),
+      listForRepo: async () => ({
+        data: [
+          {
+            number: 5,
+            html_url: "https://github.com/owner/repo/issues/5",
+            body: `Filed from ${backlinkUrl("owner/repo", 7, "review", 1)}.`,
+          },
+        ],
+      }),
+      createComment,
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "pull_request_review_comment",
+      payload: { comment, pull_request: { number: 7 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(result?.filed).toBe(false);
+    expect(createComment).not.toHaveBeenCalled();
+  });
 });
 
 describe("handleEvent - issue_comment", () => {
@@ -326,6 +398,34 @@ describe("handleEvent - issue_comment", () => {
 
     expect(result).toBeNull();
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("reacts with eyes on the triggering comment and replies with a success message once filed", async () => {
+    const comment = issueComment({ id: 5, body: `${MENTION} file this` });
+    const createForIssueComment = vi.fn(async () => undefined);
+    const createComment = vi.fn(async () => undefined);
+    const octokit = createFakeOctokit({
+      listComments: async () => ({ data: [] }),
+      create: async () => ({ data: createdIssue({ number: 12, html_url: "https://github.com/owner/repo/issues/12" }) }),
+      createForIssueComment,
+      createComment,
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "issue_comment",
+      payload: { comment, issue: { number: 3, pull_request: {} } },
+    };
+
+    await handleEvent(octokit, context, OPTIONS);
+
+    expect(createForIssueComment).toHaveBeenCalledWith(expect.objectContaining({ comment_id: 5, content: "eyes" }));
+    expect(createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issue_number: 3,
+        body: expect.stringContaining("https://github.com/owner/repo/issues/12"),
+      }),
+    );
   });
 });
 

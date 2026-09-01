@@ -1,7 +1,12 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { isAuthorizedAssociation } from "./authorization.js";
-import { fileIssueFromComment, type FileIssueResult, type TriggerComment } from "./followUpIssue.js";
+import {
+  buildFiledCommentBody,
+  fileIssueFromComment,
+  type FileIssueResult,
+  type TriggerComment,
+} from "./followUpIssue.js";
 import { hasMention } from "./mention.js";
 import type { Octokit } from "./octokit.js";
 import { isBotAuthor, isIssueCommentEventPayload, isPullRequestReviewCommentEventPayload } from "./payloads.js";
@@ -78,6 +83,12 @@ export async function handleEvent(
       core.info(`Comment author is not authorized to file issues (association: ${comment.author_association}); skipping.`);
       return null;
     }
+    await octokit.rest.reactions.createForPullRequestReviewComment({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      comment_id: comment.id,
+      content: "eyes",
+    });
     const { rootId, conversation } = await fetchReviewThreadContext(
       octokit,
       context.repo.owner,
@@ -95,7 +106,7 @@ export async function handleEvent(
       path: comment.path,
       diffHunk: comment.diff_hunk,
     };
-    return fileIssueFromComment({
+    const result = await fileIssueFromComment({
       octokit,
       repoFullName,
       prNumber: pullRequest.number,
@@ -104,6 +115,15 @@ export async function handleEvent(
       mention,
       label,
     });
+    if (result.filed) {
+      await octokit.rest.issues.createComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: pullRequest.number,
+        body: buildFiledCommentBody(result.issueNumber, result.issueUrl),
+      });
+    }
+    return result;
   }
 
   if (context.eventName === "issue_comment") {
@@ -128,6 +148,12 @@ export async function handleEvent(
       core.info(`Comment author is not authorized to file issues (association: ${comment.author_association}); skipping.`);
       return null;
     }
+    await octokit.rest.reactions.createForIssueComment({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      comment_id: comment.id,
+      content: "eyes",
+    });
     const conversation = await fetchRecentIssueComments(
       octokit,
       context.repo.owner,
@@ -143,7 +169,7 @@ export async function handleEvent(
       htmlUrl: comment.html_url,
       createdAt: comment.created_at,
     };
-    return fileIssueFromComment({
+    const result = await fileIssueFromComment({
       octokit,
       repoFullName,
       prNumber: issue.number,
@@ -152,6 +178,15 @@ export async function handleEvent(
       mention,
       label,
     });
+    if (result.filed) {
+      await octokit.rest.issues.createComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: issue.number,
+        body: buildFiledCommentBody(result.issueNumber, result.issueUrl),
+      });
+    }
+    return result;
   }
 
   core.info(`Unsupported event: ${context.eventName}`);
