@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   backlinkUrl,
+  buildFiledCommentBody,
   buildIssueBody,
   buildIssueTitle,
   fileIssueFromComment,
@@ -175,6 +176,14 @@ describe("buildIssueBody", () => {
   });
 });
 
+describe("buildFiledCommentBody", () => {
+  it("links to the filed issue", () => {
+    const body = buildFiledCommentBody(42, "https://github.com/owner/repo/issues/42");
+    expect(body).toContain("#42");
+    expect(body).toContain("https://github.com/owner/repo/issues/42");
+  });
+});
+
 describe("fileIssueFromComment", () => {
   const repoFullName = "owner/repo";
   const prNumber = 42;
@@ -226,6 +235,11 @@ describe("fileIssueFromComment", () => {
           create: async () => ({
             data: { number: 9999, html_url: `https://github.com/${repoFullName}/issues/9999` },
           }),
+          createComment: notImplemented("issues.createComment"),
+        },
+        reactions: {
+          createForIssueComment: notImplemented("reactions.createForIssueComment"),
+          createForPullRequestReviewComment: notImplemented("reactions.createForPullRequestReviewComment"),
         },
       },
     };

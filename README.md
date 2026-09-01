@@ -16,6 +16,11 @@ capturing:
 No AI involved — the trigger is the literal mention, and the issue title is
 derived deterministically from the comment's first line.
 
+The bot reacts to the triggering comment with 👀 as soon as it recognizes a
+valid request, then replies with a link to the filed issue once it's
+created (no reply is posted if an existing open issue already covers that
+comment).
+
 Only commenters with write access to the repo — GitHub's `OWNER`, `MEMBER`,
 or `COLLABORATOR` [author associations](https://docs.github.com/en/webhooks/webhook-events-and-payloads#issue_comment)
 — can trigger issue filing. A mention from anyone else (including past
@@ -46,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
-      pull-requests: read
+      pull-requests: write
     steps:
       - uses: dfadler/issue-bot@v1 # pin to a commit SHA instead — see note below
 ```

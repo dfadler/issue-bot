@@ -71,6 +71,26 @@ export type Octokit = {
         body?: string;
         labels?: string[];
       }): Promise<{ data: CreatedIssueApi }>;
+      createComment(params: {
+        owner: string;
+        repo: string;
+        issue_number: number;
+        body: string;
+      }): Promise<unknown>;
+    };
+    reactions: {
+      createForIssueComment(params: {
+        owner: string;
+        repo: string;
+        comment_id: number;
+        content: "eyes";
+      }): Promise<unknown>;
+      createForPullRequestReviewComment(params: {
+        owner: string;
+        repo: string;
+        comment_id: number;
+        content: "eyes";
+      }): Promise<unknown>;
     };
   };
 };

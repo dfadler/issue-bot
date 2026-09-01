@@ -114,6 +114,15 @@ export function buildIssueBody(params: {
   return sections.join("\n");
 }
 
+/**
+ * Posted as a reply comment once `fileIssueFromComment` actually files a
+ * new issue, so the commenter who triggered it sees confirmation without
+ * needing to watch the Action run.
+ */
+export function buildFiledCommentBody(issueNumber: number, issueUrl: string): string {
+  return `✅ Filed [issue #${issueNumber}](${issueUrl}).`;
+}
+
 function isNotFoundError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "status" in error && error.status === 404;
 }
