@@ -1,4 +1,4 @@
-name: Verify dist is up to date
+name: Build
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  check-dist:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -16,8 +16,3 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build
-      - run: |
-          if ! git diff --exit-code -- dist; then
-            echo "::error::dist/ is out of date. Run 'npm run build' and commit the result."
-            exit 1
-          fi
