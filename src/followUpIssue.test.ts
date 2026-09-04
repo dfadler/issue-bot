@@ -102,6 +102,35 @@ describe("buildIssueTitle", () => {
     const body = "\n\n@issue-bot fix this\nmore detail below";
     expect(buildIssueTitle(body, "@issue-bot")).toBe("fix this");
   });
+
+  it("strips a leading 'please create an issue to' imperative so the title describes the work, not the request", () => {
+    const body = "@issue-bot Please create an issue to refactor this block to not reassign variables";
+    expect(buildIssueTitle(body, "@issue-bot")).toBe("refactor this block to not reassign variables");
+  });
+
+  it("strips 'file an issue for' without a leading 'please'", () => {
+    expect(buildIssueTitle("@issue-bot file an issue for the retry logic bug", "@issue-bot")).toBe(
+      "the retry logic bug",
+    );
+  });
+
+  it("strips 'open an issue about'", () => {
+    expect(buildIssueTitle("@issue-bot open an issue about the flaky test", "@issue-bot")).toBe(
+      "the flaky test",
+    );
+  });
+
+  it("falls back to the default title when nothing is left after stripping the imperative", () => {
+    expect(buildIssueTitle("@issue-bot please file an issue for ", "@issue-bot")).toBe(
+      "Follow-up from PR comment",
+    );
+  });
+
+  it("does not strip 'issue' when it isn't followed by a filing preposition", () => {
+    expect(buildIssueTitle("@issue-bot create an issue tracker for this repo", "@issue-bot")).toBe(
+      "create an issue tracker for this repo",
+    );
+  });
 });
 
 describe("buildIssueBody", () => {
