@@ -72,7 +72,11 @@ duplicate.
 a security scanner (Semgrep's `github-actions-mutable-action-tag` rule, in
 particular) will flag it, and it's the same reason this repo's own CI
 requires every third-party action to be pinned. Use
-`dfadler/issue-bot@<commit-sha> # v1` instead.
+`dfadler/issue-bot@<commit-sha> # v1` instead — copy the SHA from the `v1`
+tag (or a specific `v1.x.x` tag) rather than any commit on `main`; only
+release refs (`v1`, `v1.x.x`, and the `releases/v1` branch they point at)
+contain the built `dist/index.js` the action actually runs. See
+[Releasing](#releasing) below.
 
 **A gotcha specific to `pull_request_review_comment`**: GitHub resolves
 that event's workflow definition from a snapshot tied to the pull request
@@ -136,9 +140,21 @@ npm ci
 npm run typecheck
 npm run lint
 npm test
-npm run build   # bundles src/ into dist/index.js — commit the result
+npm run build   # bundles src/ into dist/index.js (gitignored on main)
 ```
 
-`dist/` is checked into git (standard for JS actions, since consumers run
-the committed bundle directly). CI fails if `dist/` is stale relative to
-`src/`.
+## Releasing
+
+GitHub Actions runs `action.yml`'s `main: dist/index.js` directly from
+whatever ref a consumer checks out — there's no install/build step, so the
+built bundle has to already exist at that ref. Rather than commit it (and
+its diff) to every commit on `main`, `dist/index.js` is gitignored there
+and only published to dedicated release refs.
+
+To cut a release, run the **Release** workflow from the Actions tab
+(`workflow_dispatch`) with a `version` input like `1.2.3`. It builds
+`dist/index.js` from the triggering ref, commits it onto (force-pushing)
+a `releases/v<major>` branch, and force-moves both the full (`v1.2.3`) and
+major (`v1`) tags to that commit. Consumers keep using `@v1` (moving) or a
+pinned SHA from one of those tags (immutable) exactly as before — only
+where that build output actually lives has changed.

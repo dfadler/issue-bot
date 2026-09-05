@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without a leading v (e.g. 1.2.3)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run check:action-runtime
+      - run: npm run build
+
+      - name: Publish release commit and tags
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be semver without a leading 'v' (e.g. 1.2.3), got: $VERSION"
+            exit 1
+          fi
+
+          major="v${VERSION%%.*}"
+          full="v${VERSION}"
+          release_branch="releases/${major}"
+          source_sha=$(git rev-parse HEAD)
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # dist/index.js is gitignored on main; force-add this run's build so
+          # the release commit is self-contained and runnable by anyone who
+          # checks out this ref directly.
+          git add -f dist/index.js
+          git commit -m "release: ${full} (from ${source_sha})"
+
+          git branch -f "$release_branch" HEAD
+          git tag -f "$full" HEAD
+          git tag -f "$major" HEAD
+
+          git push origin "$release_branch" --force
+          git push origin "refs/tags/${full}" --force
+          git push origin "refs/tags/${major}" --force
+
+          echo "Released ${full}, moved ${major} to $(git rev-parse HEAD)"

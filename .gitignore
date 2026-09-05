@@ -2,3 +2,12 @@ node_modules/
 lib/
 *.log
 .DS_Store
+
+# The built action bundle. GitHub Actions runs `action.yml`'s `main:` path
+# directly from whatever ref a consumer checks out, so this can't be built
+# on demand the way a published package would be — it has to already exist
+# at that ref. Rather than commit it (and its diff noise) to every commit on
+# main, the release workflow builds it and publishes it to a dedicated
+# `releases/vN` branch/tag instead. See .github/workflows/release.yml and
+# the "Releasing" section in README.md.
+dist/index.js
