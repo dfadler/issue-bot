@@ -11,6 +11,7 @@ import { hasMention } from "./mention.js";
 import type { Octokit } from "./octokit.js";
 import { isBotAuthor, isIssueCommentEventPayload, isPullRequestReviewCommentEventPayload } from "./payloads.js";
 import { fetchRecentIssueComments, fetchReviewThreadContext } from "./threadContext.js";
+import { builtVersion, parseVersionCheckMode, runVersionCheck, versionCheckModeList } from "./versionCheck.js";
 
 /**
  * The slice of `@actions/github`'s `Context` this action's event dispatch
@@ -202,8 +203,23 @@ export async function run(): Promise<void> {
     return;
   }
 
+  const versionCheckInput = core.getInput("version-check") || "fail";
+  const versionCheckMode = parseVersionCheckMode(versionCheckInput);
+  if (versionCheckMode === null) {
+    core.setFailed(`Invalid version-check input "${versionCheckInput}"; expected one of: ${versionCheckModeList()}.`);
+    return;
+  }
+
   const octokit = github.getOctokit(token);
   const { context } = github;
+
+  // Runs before the event is even looked at, on purpose: the failure mode
+  // this guards against (zombie-mermaid#358) is a stale pin whose old
+  // `mention` default never matches, so gating the check on a matched
+  // mention would mean it never fires in exactly the case it exists for.
+  if (!(await runVersionCheck(octokit, versionCheckMode, builtVersion()))) {
+    return;
+  }
 
   const result = await handleEvent(octokit, context, { mention, label });
   if (result) {
