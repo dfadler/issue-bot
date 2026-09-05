@@ -70,6 +70,16 @@ export type ConversationEntry = {
 };
 
 /**
+ * Matches a leading "please file/create/open/log/make an issue to/for/about/regarding"
+ * so the title reflects the work being requested rather than the request to file an
+ * issue itself (see https://github.com/dfadler/issue-bot/issues/36). The preposition
+ * is required (not optional) so this doesn't false-positive on phrases like "create an
+ * issue tracker" that happen to contain "issue" without describing a filing request.
+ */
+const FILING_IMPERATIVE_PATTERN =
+  /^(?:please\s+)?(?:file|create|open|log|make)\s+(?:an?\s+)?issue\s+(?:to|for|about|regarding)\s*/i;
+
+/**
  * Title is derived deterministically from the comment text - no LLM call
  * in this action, the trigger is the literal mention, not a model's
  * judgment.
@@ -78,7 +88,8 @@ export function buildIssueTitle(commentBody: string, mention: string): string {
   const firstLine = commentBody.split("\n").find((line) => line.trim().length > 0) ?? "";
   const mentionPattern = new RegExp(mention.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
   const withoutMention = firstLine.replace(mentionPattern, "").trim();
-  const title = withoutMention.length > 0 ? withoutMention : "Follow-up from PR comment";
+  const withoutImperative = withoutMention.replace(FILING_IMPERATIVE_PATTERN, "").trim();
+  const title = withoutImperative.length > 0 ? withoutImperative : "Follow-up from PR comment";
   return title.length > 80 ? `${title.slice(0, 79)}…` : title;
 }
 
