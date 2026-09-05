@@ -47,6 +47,11 @@ function createFakeOctokit(overrides: {
         create: overrides.create ?? notImplemented("issues.create"),
         createComment: overrides.createComment ?? (async () => undefined),
       },
+      repos: {
+        // handleEvent never consults the version check (that's run()'s
+        // job, before dispatch), so no test here should reach this.
+        listTags: notImplemented("repos.listTags"),
+      },
       reactions: {
         createForIssueComment: overrides.createForIssueComment ?? (async () => undefined),
         createForPullRequestReviewComment: overrides.createForPullRequestReviewComment ?? (async () => undefined),

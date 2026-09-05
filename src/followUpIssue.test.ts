@@ -266,6 +266,9 @@ describe("fileIssueFromComment", () => {
           }),
           createComment: notImplemented("issues.createComment"),
         },
+        repos: {
+          listTags: notImplemented("repos.listTags"),
+        },
         reactions: {
           createForIssueComment: notImplemented("reactions.createForIssueComment"),
           createForPullRequestReviewComment: notImplemented("reactions.createForPullRequestReviewComment"),

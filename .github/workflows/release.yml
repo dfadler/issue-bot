@@ -21,12 +21,29 @@ jobs:
           node-version: "22"
           cache: "npm"
 
+      - name: Validate version input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be semver without a leading 'v' (e.g. 1.2.3), got: $VERSION"
+            exit 1
+          fi
+
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
       - run: npm run check:action-runtime
+
+      # ISSUE_BOT_VERSION is baked into dist/index.js by scripts/build.mjs so
+      # the running action knows which release it is - the input to its
+      # `version-check` against the latest vX.Y.Z tag. Only this workflow
+      # sets it; every other build is a "dev build" that skips the check.
       - run: npm run build
+        env:
+          ISSUE_BOT_VERSION: ${{ inputs.version }}
 
       - name: Publish release commit and tags
         env:
@@ -34,8 +51,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::version must be semver without a leading 'v' (e.g. 1.2.3), got: $VERSION"
+          # The bundle must carry the version it's about to be tagged as;
+          # otherwise consumers of this tag could never be told they're stale.
+          if ! grep -qF "\"${VERSION}\"" dist/index.js; then
+            echo "::error::dist/index.js does not contain the release version \"${VERSION}\" - was ISSUE_BOT_VERSION passed to the build step?"
             exit 1
           fi
 

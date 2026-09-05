@@ -26,10 +26,15 @@ export type CreatedIssueApi = {
   html_url: string;
 };
 
+export type TagApi = {
+  name: string;
+  commit: { sha: string };
+};
+
 /**
  * The minimal slice of Octokit's REST surface this action actually calls -
- * exactly the methods used by threadContext.ts, followUpIssue.ts, and
- * index.ts's event dispatch. Hand-rolled instead of exporting
+ * exactly the methods used by threadContext.ts, followUpIssue.ts,
+ * versionCheck.ts, and index.ts's event dispatch. Hand-rolled instead of exporting
  * `ReturnType<typeof getOctokit>` (the full, deeply overloaded SDK client
  * type) so tests can pass a plain fake object literal implementing just
  * these methods - no type assertion needed to bridge the gap, which matters
@@ -77,6 +82,9 @@ export type Octokit = {
         issue_number: number;
         body: string;
       }): Promise<unknown>;
+    };
+    repos: {
+      listTags(params: { owner: string; repo: string; per_page?: number }): Promise<{ data: TagApi[] }>;
     };
     reactions: {
       createForIssueComment(params: {

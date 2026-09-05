@@ -93,6 +93,7 @@ This is easy to mistake for the action silently failing to update.
 | `mention`      | `@issue-bot`            | The mention string that triggers issue creation.                                  |
 | `label`        | `from-pr-comment`       | Label applied to filed issues (auto-created if it doesn't exist). Empty to skip.   |
 | `github-token` | `${{ github.token }}`  | Token used to read comments and create issues/labels.                             |
+| `version-check` | `fail`                 | `fail`, `warn`, or `off` — what to do when this pinned release is older than the latest `dfadler/issue-bot` release. See [Version check](#version-check). |
 
 #### Using a GitHub App token
 
@@ -125,6 +126,65 @@ or add a webhook receiver (see
 [#28](https://github.com/dfadler/issue-bot/issues/28) for why that's a
 separate, larger decision).
 
+### Version check
+
+On every run, before it looks at the triggering comment, the action compares
+the release it was built as against the newest `vX.Y.Z` tag on
+`dfadler/issue-bot`. If the running release is older, the default `fail`
+mode fails the run with a message naming both versions and the exact line to
+update to:
+
+```
+issue-bot v1.1.0 is running, but v1.2.0 is the latest release. Update the `uses:` line in your workflow to:
+
+    uses: dfadler/issue-bot@<sha-of-v1.2.0> # v1.2.0
+```
+
+**Why fail, rather than warn?** A stale pin doesn't just miss new features —
+it can silently change what the action does. The case that motivated this
+([zombie-mermaid#358](https://github.com/dfadler/zombie-mermaid/issues/358),
+from the discussion on
+[zombie-mermaid#346](https://github.com/dfadler/zombie-mermaid/pull/346)): a
+consumer pinned to a commit whose `action.yml` still defaulted `mention` to
+the older `@dfadler-issue-bot` handle. Comments mentioning the current
+`@issue-bot` never matched, so every run logged "No mention found" and
+exited green. Nothing was wrong from the workflow's point of view; the
+mention was simply never going to fire. That's also why the check runs
+*before* the mention is looked for: gating it on a matched mention would
+mean it never fires in exactly the case it exists for.
+
+| `version-check` | Running release older than latest                                   | Up to date / newer | Can't compare (network, rate limit, no semver tags, dev build) |
+| --------------- | -------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------- |
+| `fail` (default) | `core.setFailed` with the message above; the comment is **not** processed | proceeds          | `core.warning`, proceeds                                        |
+| `warn`          | `core.warning` with the same message; proceeds                       | proceeds           | `core.warning`, proceeds                                        |
+| `off`           | proceeds (no API call made)                                          | proceeds           | proceeds                                                        |
+
+Only an actual stale release fails. Anything that prevents the comparison
+from happening — the tag lookup erroring, the token being unable to read
+`dfadler/issue-bot`, a build with no embedded version — is a warning, so a
+transient outage upstream can't break your issue filing.
+
+To opt out or soften it:
+
+```yaml
+- uses: dfadler/issue-bot@<commit-sha> # v1
+  with:
+    version-check: warn # or "off"
+```
+
+**This works with SHA pins.** The version being compared is stamped into
+`dist/index.js` at release time (see [Releasing](#releasing)), not parsed
+out of your `uses:` ref — so a commit SHA copied from a `v1.x.y` tag knows
+exactly which release it is. A SHA from before this check existed
+(`v1.1.0` and earlier) has no such stamp and simply never checks; the
+first release that includes it is the first one that can tell you it's
+stale.
+
+"Latest" means the highest full `vX.Y.Z` tag, across major versions: a
+consumer on the `v1` line will be told to move up once a `v2.0.0` tag
+exists. The moving major aliases (`v1`, `v2`) are never themselves treated
+as "the latest release".
+
 ### Outputs
 
 | Output         | Description                                                                |
@@ -143,6 +203,16 @@ npm test
 npm run build   # bundles src/ into dist/index.js (gitignored on main)
 ```
 
+`npm run build` on its own produces a *dev build*: `scripts/build.mjs`
+stamps an empty release version into the bundle, so the runtime
+[version check](#version-check) warns and skips itself. To build the way
+the release workflow does — with the version baked in — set
+`ISSUE_BOT_VERSION`:
+
+```bash
+ISSUE_BOT_VERSION=1.2.3 npm run build
+```
+
 ## Releasing
 
 GitHub Actions runs `action.yml`'s `main: dist/index.js` directly from
@@ -153,8 +223,17 @@ and only published to dedicated release refs.
 
 To cut a release, run the **Release** workflow from the Actions tab
 (`workflow_dispatch`) with a `version` input like `1.2.3`. It builds
-`dist/index.js` from the triggering ref, commits it onto (force-pushing)
-a `releases/v<major>` branch, and force-moves both the full (`v1.2.3`) and
-major (`v1`) tags to that commit. Consumers keep using `@v1` (moving) or a
-pinned SHA from one of those tags (immutable) exactly as before — only
-where that build output actually lives has changed.
+`dist/index.js` from the triggering ref with that version stamped into the
+bundle (`ISSUE_BOT_VERSION`, read by `scripts/build.mjs`), commits it onto
+(force-pushing) a `releases/v<major>` branch, and force-moves both the full
+(`v1.2.3`) and major (`v1`) tags to that commit. Consumers keep using `@v1`
+(moving) or a pinned SHA from one of those tags (immutable) exactly as
+before — only where that build output actually lives has changed.
+
+The stamped version is what the runtime [version check](#version-check)
+compares against the newest `vX.Y.Z` tag, so two things about cutting a
+release matter for it: the `version` input must be higher than every
+existing full tag (a `1.1.5` cut after `1.2.0` would be reported as stale
+the moment anyone ran it), and the workflow refuses to publish a bundle
+that doesn't contain the version it's about to tag. The check reads tags, not GitHub Releases, so creating a
+Release object is optional.
