@@ -108,8 +108,10 @@ duplicate.
 a security scanner (Semgrep's `github-actions-mutable-action-tag` rule, in
 particular) will flag it, and it's the same reason this repo's own CI
 requires every third-party action to be pinned. Use
-`dfadler/issue-bot@<commit-sha> # v1` instead — copy the SHA from the `v1`
-tag (or a specific `v1.x.x` tag) rather than any commit on `main`; only
+`dfadler/issue-bot@<commit-sha> # v1` instead — get the SHA to use from
+the notes on that release's [GitHub Release](https://github.com/dfadler/issue-bot/releases),
+which already has the exact `uses:` line ready to paste, rather than
+resolving one yourself from the `v1` tag or any commit on `main`; only
 release refs (`v1`, `v1.x.x`, and the `releases/v1` branch they point at)
 contain the built `dist/index.js` the action actually runs. See
 [Releasing](#releasing) below.
@@ -342,5 +344,16 @@ compares against the newest `vX.Y.Z` tag, so two things about cutting a
 release matter for it: the `version` input must be higher than every
 existing full tag (a `1.1.5` cut after `1.2.0` would be reported as stale
 the moment anyone ran it), and the workflow refuses to publish a bundle
-that doesn't contain the version it's about to tag. The check reads tags, not GitHub Releases, so creating a
-Release object is optional.
+that doesn't contain the version it's about to tag. (The check itself
+reads tags, not GitHub Releases.)
+
+Once the commit and tags above exist, the workflow also publishes a
+[GitHub Release](https://github.com/dfadler/issue-bot/releases) for that
+tag with the exact commit SHA already filled into a ready-to-paste
+`uses:` line (and the reusable-workflow equivalent) — check a release's
+notes for the pin to actually copy, rather than resolving the SHA
+yourself. This can't live in README.md itself: the pin is the release
+commit's own hash, which doesn't exist yet at the point any commit's
+content — README.md included — is written. Re-running the workflow for
+an already-released version updates that release's notes in place rather
+than failing.

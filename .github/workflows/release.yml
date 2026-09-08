@@ -81,3 +81,53 @@ jobs:
           git push origin "refs/tags/${major}" --force
 
           echo "Released ${full}, moved ${major} to $(git rev-parse HEAD)"
+
+      # README.md can only ever show a generic `@v1` placeholder (see its
+      # "pin to a commit SHA" note) - the pin SHA is the release commit made
+      # above, and a commit can't contain its own hash. This publishes the
+      # ready-to-paste line with that resolved SHA as a GitHub Release
+      # instead, once the commit and tags above actually exist to reference.
+      - name: Publish GitHub Release with a pinned usage snippet
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          major="v${VERSION%%.*}"
+          full="v${VERSION}"
+          release_sha=$(git rev-parse HEAD)
+          notes_file=$(mktemp)
+
+          cat > "$notes_file" <<'NOTES'
+          ## Usage
+
+          Pin to this release's exact commit instead of the mutable `__MAJOR__`/`__FULL__` tags - see the [README](https://github.com/dfadler/issue-bot/blob/__SHA__/README.md#usage) for why that matters.
+
+          ```yaml
+          - uses: dfadler/issue-bot@__SHA__ # __FULL__
+          ```
+
+          Or with the [reusable workflow](https://github.com/dfadler/issue-bot/blob/__SHA__/README.md#reusable-workflow):
+
+          ```yaml
+          jobs:
+            issue-bot:
+              uses: dfadler/issue-bot/.github/workflows/reusable.yml@__SHA__ # __FULL__
+              permissions:
+                issues: write
+                pull-requests: write
+              with:
+                ref: __SHA__ # __FULL__
+          ```
+          NOTES
+
+          sed -i -e "s/__SHA__/${release_sha}/g" -e "s/__FULL__/${full}/g" -e "s/__MAJOR__/${major}/g" "$notes_file"
+
+          if gh release view "$full" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release edit "$full" --repo "${{ github.repository }}" --title "$full" --notes-file "$notes_file"
+          else
+            gh release create "$full" --repo "${{ github.repository }}" --title "$full" --notes-file "$notes_file"
+          fi
+
+          echo "Published GitHub Release ${full} pinned to ${release_sha}"
