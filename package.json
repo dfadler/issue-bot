@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "test": "vitest run",
-    "check:action-runtime": "node scripts/check-action-runtime.mjs"
+    "check:action-runtime": "node scripts/check-action-runtime.mjs",
+    "generate:cost-guard": "node scripts/generate-cost-guard.mjs",
+    "check:cost-guard": "node scripts/generate-cost-guard.mjs --check"
   },
   "dependencies": {
     "@actions/core": "^3.0.1",

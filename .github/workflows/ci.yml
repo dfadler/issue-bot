@@ -19,3 +19,4 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run check:action-runtime
+      - run: npm run check:cost-guard
