@@ -203,6 +203,89 @@ describe("buildIssueBody", () => {
     });
     expect(body).toContain(backlinkUrl("owner/repo", 1, "review", 7));
   });
+
+  it("omits the pull request context section when none is given", () => {
+    const body = buildIssueBody({
+      comment: {
+        id: 1,
+        kind: "review",
+        author: "octocat",
+        body: "@issue-bot look at this",
+        htmlUrl: "https://github.com/owner/repo/pull/1#discussion_r1",
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+      repoFullName: "owner/repo",
+      prNumber: 1,
+      conversation: [],
+    });
+    expect(body).not.toContain("### Pull request context");
+  });
+
+  it("includes the PR title, description, and changed files when given", () => {
+    const body = buildIssueBody({
+      comment: {
+        id: 1,
+        kind: "review",
+        author: "octocat",
+        body: "@issue-bot look at this",
+        htmlUrl: "https://github.com/owner/repo/pull/1#discussion_r1",
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+      repoFullName: "owner/repo",
+      prNumber: 1,
+      conversation: [],
+      pullRequest: {
+        title: "Add territory extraction",
+        body: "Implements the ascii renderer.",
+        changedFiles: ["src/ascii/territory.ts", "src/index.ts"],
+      },
+    });
+    expect(body).toContain("### Pull request context");
+    expect(body).toContain("[#1](https://github.com/owner/repo/pull/1): Add territory extraction");
+    expect(body).toContain("Implements the ascii renderer.");
+    expect(body).toContain("**Files changed:** `src/ascii/territory.ts`, `src/index.ts`");
+  });
+
+  it("notes a missing PR description instead of leaving the section blank", () => {
+    const body = buildIssueBody({
+      comment: {
+        id: 1,
+        kind: "review",
+        author: "octocat",
+        body: "@issue-bot look at this",
+        htmlUrl: "https://github.com/owner/repo/pull/1#discussion_r1",
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+      repoFullName: "owner/repo",
+      prNumber: 1,
+      conversation: [],
+      pullRequest: { title: "No description PR", body: null, changedFiles: [] },
+    });
+    expect(body).toContain("_No description provided._");
+    expect(body).not.toContain("**Files changed:**");
+  });
+
+  it("caps the listed changed files and notes how many more there are", () => {
+    const changedFiles = Array.from({ length: 25 }, (_, i) => `src/file${i}.ts`);
+    const body = buildIssueBody({
+      comment: {
+        id: 1,
+        kind: "review",
+        author: "octocat",
+        body: "@issue-bot look at this",
+        htmlUrl: "https://github.com/owner/repo/pull/1#discussion_r1",
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+      repoFullName: "owner/repo",
+      prNumber: 1,
+      conversation: [],
+      pullRequest: { title: "Big PR", body: null, changedFiles },
+    });
+    expect(body).toContain("`src/file0.ts`");
+    expect(body).toContain("`src/file19.ts`");
+    expect(body).not.toContain("`src/file20.ts`");
+    expect(body).toContain("and 5 more");
+  });
 });
 
 describe("buildFiledCommentBody", () => {
@@ -251,6 +334,9 @@ describe("fileIssueFromComment", () => {
       rest: {
         pulls: {
           listReviewComments: notImplemented("pulls.listReviewComments"),
+          createReplyForReviewComment: notImplemented("pulls.createReplyForReviewComment"),
+          get: notImplemented("pulls.get"),
+          listFiles: notImplemented("pulls.listFiles"),
         },
         issues: {
           listComments: notImplemented("issues.listComments"),

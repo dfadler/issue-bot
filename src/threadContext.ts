@@ -1,5 +1,5 @@
 import type { Octokit } from "./octokit.js";
-import type { ConversationEntry } from "./followUpIssue.js";
+import type { ConversationEntry, PullRequestSummary } from "./followUpIssue.js";
 
 export type ThreadableComment = { id: number; in_reply_to_id?: number };
 
@@ -114,4 +114,28 @@ export async function fetchRecentIssueComments(
       body: comment.body ?? "",
       createdAt: comment.created_at,
     }));
+}
+
+/**
+ * Deterministic supporting context for the issue body: the PR's own title,
+ * description, and changed-file list. A single `listFiles` page (100) is
+ * plenty for supporting context - not worth paginating exhaustively for a
+ * follow-up issue that only shows the first `MAX_LISTED_CHANGED_FILES` of it
+ * anyway.
+ */
+export async function fetchPullRequestSummary(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<PullRequestSummary> {
+  const [{ data: pullRequest }, { data: files }] = await Promise.all([
+    octokit.rest.pulls.get({ owner, repo, pull_number: prNumber }),
+    octokit.rest.pulls.listFiles({ owner, repo, pull_number: prNumber, per_page: 100 }),
+  ]);
+  return {
+    title: pullRequest.title,
+    body: pullRequest.body,
+    changedFiles: files.map((file) => file.filename),
+  };
 }

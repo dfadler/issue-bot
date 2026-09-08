@@ -156,9 +156,11 @@ and pass it as `github-token`:
 
 The App installation needs the same permissions the default token needs:
 `issues: write` (create issues/labels) and `pull-requests: write` (read
-review comments and thread context, and react to the triggering comment —
-reacting to a PR review comment is a write operation on the `pulls`
-resource, so `pull-requests: read` alone gets a 403).
+review comments and thread context, read the PR's own title/description/
+changed files for supporting context, react to the triggering comment, and
+reply inline in its review thread once an issue is filed — all of these are
+write operations on the `pulls` resource, so `pull-requests: read` alone
+gets a 403).
 
 This only changes which token authenticates the API calls the action
 already makes — it does not turn issue-bot into a standalone GitHub App

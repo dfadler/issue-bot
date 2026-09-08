@@ -36,6 +36,9 @@ function notImplemented(name: string): () => never {
  */
 function createFakeOctokit(overrides: {
   listReviewComments?: Octokit["rest"]["pulls"]["listReviewComments"];
+  createReplyForReviewComment?: Octokit["rest"]["pulls"]["createReplyForReviewComment"];
+  getPullRequest?: Octokit["rest"]["pulls"]["get"];
+  listFiles?: Octokit["rest"]["pulls"]["listFiles"];
   listComments?: Octokit["rest"]["issues"]["listComments"];
   listForRepo?: Octokit["rest"]["issues"]["listForRepo"];
   getLabel?: Octokit["rest"]["issues"]["getLabel"];
@@ -53,6 +56,10 @@ function createFakeOctokit(overrides: {
     rest: {
       pulls: {
         listReviewComments: overrides.listReviewComments ?? notImplemented("pulls.listReviewComments"),
+        createReplyForReviewComment:
+          overrides.createReplyForReviewComment ?? (async () => undefined),
+        get: overrides.getPullRequest ?? (async () => ({ data: { title: "", body: null } })),
+        listFiles: overrides.listFiles ?? (async () => ({ data: [] })),
       },
       issues: {
         listComments: overrides.listComments ?? notImplemented("issues.listComments"),
@@ -261,15 +268,15 @@ describe("handleEvent - pull_request_review_comment", () => {
     expect(result).toEqual({ filed: true, issueNumber: 99, issueUrl: createdIssue().html_url });
   });
 
-  it("reacts with eyes on the triggering comment and replies with a success message once filed", async () => {
+  it("reacts with eyes on the triggering comment and replies inline in the review thread once filed", async () => {
     const comment = reviewComment({ id: 1, author_association: "COLLABORATOR" });
     const createForPullRequestReviewComment = vi.fn(async () => undefined);
-    const createComment = vi.fn(async () => undefined);
+    const createReplyForReviewComment = vi.fn(async () => undefined);
     const octokit = createFakeOctokit({
       listReviewComments: async () => ({ data: [comment] }),
       create: async () => ({ data: createdIssue({ number: 42, html_url: "https://github.com/owner/repo/issues/42" }) }),
       createForPullRequestReviewComment,
-      createComment,
+      createReplyForReviewComment,
     });
 
     const context: EventContext = {
@@ -283,9 +290,10 @@ describe("handleEvent - pull_request_review_comment", () => {
     expect(createForPullRequestReviewComment).toHaveBeenCalledWith(
       expect.objectContaining({ comment_id: 1, content: "eyes" }),
     );
-    expect(createComment).toHaveBeenCalledWith(
+    expect(createReplyForReviewComment).toHaveBeenCalledWith(
       expect.objectContaining({
-        issue_number: 7,
+        pull_number: 7,
+        comment_id: 1,
         body: expect.stringContaining("https://github.com/owner/repo/issues/42"),
       }),
     );
@@ -315,13 +323,13 @@ describe("handleEvent - pull_request_review_comment", () => {
     expect(result).toEqual({ filed: true, issueNumber: 99, issueUrl: createdIssue().html_url });
   });
 
-  it("does not post a success comment when an existing issue already covers the thread", async () => {
+  it("does not post a success reply when an existing issue already covers the thread", async () => {
     const comment = reviewComment({
       id: 1,
       author_association: "COLLABORATOR",
       body: `${MENTION} file this`,
     });
-    const createComment = vi.fn(async () => undefined);
+    const createReplyForReviewComment = vi.fn(async () => undefined);
     const octokit = createFakeOctokit({
       listReviewComments: async () => ({ data: [comment] }),
       listForRepo: async () => ({
@@ -333,7 +341,7 @@ describe("handleEvent - pull_request_review_comment", () => {
           },
         ],
       }),
-      createComment,
+      createReplyForReviewComment,
     });
 
     const context: EventContext = {
@@ -345,7 +353,7 @@ describe("handleEvent - pull_request_review_comment", () => {
     const result = await handleEvent(octokit, context, OPTIONS);
 
     expect(result?.filed).toBe(false);
-    expect(createComment).not.toHaveBeenCalled();
+    expect(createReplyForReviewComment).not.toHaveBeenCalled();
   });
 });
 

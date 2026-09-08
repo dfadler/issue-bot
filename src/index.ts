@@ -10,7 +10,7 @@ import {
 import { hasMention } from "./mention.js";
 import type { Octokit } from "./octokit.js";
 import { isBotAuthor, isIssueCommentEventPayload, isPullRequestReviewCommentEventPayload } from "./payloads.js";
-import { fetchRecentIssueComments, fetchReviewThreadContext } from "./threadContext.js";
+import { fetchPullRequestSummary, fetchRecentIssueComments, fetchReviewThreadContext } from "./threadContext.js";
 import { builtVersion, parseVersionCheckMode, runVersionCheck, versionCheckModeList } from "./versionCheck.js";
 
 /**
@@ -96,13 +96,10 @@ export async function handleEvent(
         `Failed to react to review comment ${comment.id}; continuing without it: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    const { rootId, conversation } = await fetchReviewThreadContext(
-      octokit,
-      context.repo.owner,
-      context.repo.repo,
-      pullRequest.number,
-      comment.id,
-    );
+    const [{ rootId, conversation }, pullRequestSummary] = await Promise.all([
+      fetchReviewThreadContext(octokit, context.repo.owner, context.repo.repo, pullRequest.number, comment.id),
+      fetchPullRequestSummary(octokit, context.repo.owner, context.repo.repo, pullRequest.number),
+    ]);
     const trigger: TriggerComment = {
       id: rootId,
       kind: "review",
@@ -119,14 +116,19 @@ export async function handleEvent(
       prNumber: pullRequest.number,
       comment: trigger,
       conversation,
+      pullRequest: pullRequestSummary,
       mention,
       label,
     });
     if (result.filed) {
-      await octokit.rest.issues.createComment({
+      // Reply inline in the review thread that triggered this, rather than
+      // posting a general PR conversation comment (issues.createComment)
+      // that's disconnected from the thread it was filed from.
+      await octokit.rest.pulls.createReplyForReviewComment({
         owner: context.repo.owner,
         repo: context.repo.repo,
-        issue_number: pullRequest.number,
+        pull_number: pullRequest.number,
+        comment_id: comment.id,
         body: buildFiledCommentBody(result.issueNumber, result.issueUrl),
       });
     }
@@ -167,13 +169,10 @@ export async function handleEvent(
         `Failed to react to comment ${comment.id}; continuing without it: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    const conversation = await fetchRecentIssueComments(
-      octokit,
-      context.repo.owner,
-      context.repo.repo,
-      issue.number,
-      comment.id,
-    );
+    const [conversation, pullRequestSummary] = await Promise.all([
+      fetchRecentIssueComments(octokit, context.repo.owner, context.repo.repo, issue.number, comment.id),
+      fetchPullRequestSummary(octokit, context.repo.owner, context.repo.repo, issue.number),
+    ]);
     const trigger: TriggerComment = {
       id: comment.id,
       kind: "issue",
@@ -188,6 +187,7 @@ export async function handleEvent(
       prNumber: issue.number,
       comment: trigger,
       conversation,
+      pullRequest: pullRequestSummary,
       mention,
       label,
     });
