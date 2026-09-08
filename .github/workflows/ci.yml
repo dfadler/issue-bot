@@ -9,7 +9,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 (rather than the default shallow, tag-less clone) so
+      # check:sha-pins can resolve the v1/vX.Y.Z tags README.md pins to.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
@@ -20,3 +24,4 @@ jobs:
       - run: npm test
       - run: npm run check:action-runtime
       - run: npm run check:cost-guard
+      - run: npm run check:sha-pins

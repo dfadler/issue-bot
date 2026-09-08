@@ -107,11 +107,12 @@ duplicate.
 **Pin to a commit SHA, not `@v1` or `@main`.** A tag or branch is mutable —
 a security scanner (Semgrep's `github-actions-mutable-action-tag` rule, in
 particular) will flag it, and it's the same reason this repo's own CI
-requires every third-party action to be pinned. Use
-`dfadler/issue-bot@<commit-sha> # v1` instead — get the SHA to use from
-the notes on that release's [GitHub Release](https://github.com/dfadler/issue-bot/releases),
-which already has the exact `uses:` line ready to paste, rather than
-resolving one yourself from the `v1` tag or any commit on `main`; only
+requires every third-party action to be pinned. The examples below already
+show the current `v1` commit SHA — kept up to date automatically by the
+[release workflow](#releasing) whenever a release is cut, so there's
+nothing to resolve yourself. Pinning to a specific past release instead of
+the latest one? Copy its exact SHA from that release's
+[GitHub Release notes](https://github.com/dfadler/issue-bot/releases). Only
 release refs (`v1`, `v1.x.x`, and the `releases/v1` branch they point at)
 contain the built `dist/index.js` the action actually runs. See
 [Releasing](#releasing) below.
@@ -149,7 +150,7 @@ and pass it as `github-token`:
     app-id: ${{ vars.APP_ID }}
     private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-- uses: dfadler/issue-bot@<commit-sha> # v1
+- uses: dfadler/issue-bot@0f14bb71f02ee14abf9f2f332bfe97d2ee11a272 # v1
   with:
     github-token: ${{ steps.app-token.outputs.token }}
 ```
@@ -177,7 +178,7 @@ update to:
 ```
 issue-bot v1.1.0 is running, but v1.2.0 is the latest release. Update the `uses:` line in your workflow to:
 
-    uses: dfadler/issue-bot@<sha-of-v1.2.0> # v1.2.0
+    uses: dfadler/issue-bot@0f14bb71f02ee14abf9f2f332bfe97d2ee11a272 # v1.2.0
 ```
 
 **Why fail, rather than warn?** A stale pin doesn't just miss new features —
@@ -207,7 +208,7 @@ transient outage upstream can't break your issue filing.
 To opt out or soften it:
 
 ```yaml
-- uses: dfadler/issue-bot@<commit-sha> # v1
+- uses: dfadler/issue-bot@0f14bb71f02ee14abf9f2f332bfe97d2ee11a272 # v1
   with:
     version-check: warn # or "off"
 ```
@@ -268,7 +269,7 @@ jobs:
       pull-requests: write
     with:
       label: "" # skip labeling
-      ref: "<commit-sha>" # pin the action's own ref too — see below
+      ref: "0f14bb71f02ee14abf9f2f332bfe97d2ee11a272" # pin the action's own ref too — see below
     secrets:
       github-token: ${{ secrets.MY_TOKEN }} # defaults to the calling job's GITHUB_TOKEN
 ```
@@ -312,6 +313,15 @@ example in this README from those two files, so the three copies of that
 gate can't quietly drift apart. `npm run check:cost-guard` (part of CI)
 fails if they ever do.
 
+`npm run generate:sha-pins` rewrites README.md's `dfadler/issue-bot@<sha>`
+and reusable-workflow `with.ref` examples to the real, current commit for
+whichever tag each names (`v1`, `v1.2.0`, ...), resolved from this
+checkout's own git tags. The [Release workflow](#releasing) runs it
+automatically after cutting a release and commits the result, so you
+shouldn't normally need to run it by hand. `npm run check:sha-pins` (part
+of CI) fails if README.md ever falls out of sync with the tags it
+references.
+
 `npm run build` on its own produces a *dev build*: `scripts/build.mjs`
 stamps an empty release version into the bundle, so the runtime
 [version check](#version-check) warns and skips itself. To build the way
@@ -347,13 +357,20 @@ the moment anyone ran it), and the workflow refuses to publish a bundle
 that doesn't contain the version it's about to tag. (The check itself
 reads tags, not GitHub Releases.)
 
-Once the commit and tags above exist, the workflow also publishes a
-[GitHub Release](https://github.com/dfadler/issue-bot/releases) for that
-tag with the exact commit SHA already filled into a ready-to-paste
-`uses:` line (and the reusable-workflow equivalent) — check a release's
-notes for the pin to actually copy, rather than resolving the SHA
-yourself. This can't live in README.md itself: the pin is the release
-commit's own hash, which doesn't exist yet at the point any commit's
-content — README.md included — is written. Re-running the workflow for
-an already-released version updates that release's notes in place rather
-than failing.
+Once the commit and tags above exist (so the release commit's SHA is
+actually known — a commit can't contain its own hash), the workflow does
+two more things with it:
+
+- Publishes a [GitHub Release](https://github.com/dfadler/issue-bot/releases)
+  for that tag, with the exact commit SHA filled into a ready-to-paste
+  `uses:` line (and the reusable-workflow equivalent) — useful for pinning
+  to that specific release later, rather than always tracking latest `v1`.
+- Runs `npm run generate:sha-pins` (see [Development](#development)) and
+  pushes a follow-up commit to `main` that rewrites README.md's own
+  `uses:`/`ref:` examples to that same SHA — a separate, later commit than
+  the release commit itself, so no self-reference problem — so the
+  copy-pasteable examples throughout this doc always show the current
+  `v1` pin without you having to open a Release page.
+
+Re-running the workflow for an already-released version updates both the
+Release notes and the README commit in place rather than failing.

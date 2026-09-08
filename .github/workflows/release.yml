@@ -14,7 +14,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 - the default shallow, tag-less clone would leave
+      # generate-sha-pins.mjs unable to resolve any tag README.md pins to
+      # other than the ones this run itself force-moves (e.g. an older
+      # `vX.Y.Z` an illustrative example still references).
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -82,11 +88,37 @@ jobs:
 
           echo "Released ${full}, moved ${major} to $(git rev-parse HEAD)"
 
-      # README.md can only ever show a generic `@v1` placeholder (see its
-      # "pin to a commit SHA" note) - the pin SHA is the release commit made
-      # above, and a commit can't contain its own hash. This publishes the
-      # ready-to-paste line with that resolved SHA as a GitHub Release
-      # instead, once the commit and tags above actually exist to reference.
+      # The release commit above can't reference its own hash (it doesn't
+      # exist yet while that commit is being written), so README.md's pins
+      # can't be updated as part of it. Once the tags above exist, though,
+      # the SHA they point to is known - this rewrites README.md's own
+      # examples to it in a separate, later commit pushed straight to
+      # `main` (not the release ref), via scripts/generate-sha-pins.mjs.
+      # HEAD at this point is the detached release commit made above (which
+      # bundles dist/index.js); check out main fresh rather than committing
+      # on top of that, or the release commit would land on main too.
+      - name: Update README's pinned commit SHAs on main
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin main
+          git checkout -B main origin/main
+
+          npm run generate:sha-pins
+
+          if git diff --quiet -- README.md; then
+            echo "README.md already up to date; nothing to commit."
+          else
+            git add README.md
+            git commit -m "docs: update README's pinned commit SHAs for v${VERSION}"
+            git push origin main
+          fi
+
+      # This publishes the ready-to-paste line with the release commit's
+      # SHA as a GitHub Release too, for pinning to *that specific* release
+      # later rather than always tracking the latest `v1` shown in README.md.
       - name: Publish GitHub Release with a pinned usage snippet
         env:
           VERSION: ${{ inputs.version }}
@@ -96,7 +128,10 @@ jobs:
 
           major="v${VERSION%%.*}"
           full="v${VERSION}"
-          release_sha=$(git rev-parse HEAD)
+          # Not `git rev-parse HEAD`: the prior step checks out `main` to
+          # commit the README update, which moves HEAD off the release
+          # commit. The tag itself still points at it either way.
+          release_sha=$(git rev-parse "$full")
           notes_file=$(mktemp)
 
           cat > "$notes_file" <<'NOTES'
