@@ -58,7 +58,41 @@ jobs:
 
 The action itself checks whether the comment contains the mention (and, for
 `issue_comment`, whether it's actually on a PR rather than a plain issue) —
-you don't need an `if:` gate in the workflow.
+you don't need an `if:` gate in the workflow for correctness.
+
+That's not the same as saying you don't need one at all. Without a job-level
+`if:`, this workflow boots a full runner for *every* issue/PR comment in the
+repo just so the action can say no in a few seconds — still billed at
+GitHub's 1-minute floor per run. On an active repo that adds up: one audit
+saw 995 runs over 14 days, ~71 minutes/day, almost none doing real work. Two
+ways to avoid that, in increasing order of how much you get for free:
+
+- **Use the [reusable workflow](#reusable-workflow)** below — the cost guard
+  is authored and maintained here, so you don't have to copy it by hand.
+- **Or add the gate yourself**, mirroring (not tightening) the checks the
+  action already makes internally:
+
+  ```yaml
+  jobs:
+    issue-bot:
+      if: >-
+        contains(github.event.comment.body, '@issue-bot') &&
+        (github.event_name != 'issue_comment' || github.event.issue.pull_request != null) &&
+        github.event.comment.user.type != 'Bot' &&
+        (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR')
+      runs-on: ubuntu-latest
+      permissions:
+        issues: write
+        pull-requests: write
+      steps:
+        - uses: dfadler/issue-bot@v1 # pin to a commit SHA instead — see note below
+  ```
+
+  Update the `'@issue-bot'` literal if you've customized the `mention`
+  input. `contains()` can't reproduce the action's word-boundary mention
+  match exactly (it'd let a couple more comments through the gate, e.g.
+  `@issue-bot2`), but that only ever admits a few extra runs the action
+  still says no to for free — it never skips a real invocation.
 
 Both events also trigger on `edited`, so posting a comment and *then* editing
 it to add the mention still files an issue — not just mentioning it at
@@ -194,6 +228,67 @@ as "the latest release".
 | `filed`        | `"true"` if a new issue was filed, `"false"` otherwise.                     |
 | `issue-number` | The number of the filed issue, if one was filed.                            |
 | `issue-url`    | The URL of the filed issue, or the existing issue that already covers this comment. |
+
+### Reusable workflow
+
+Instead of hand-writing the [cost-guard `if:`](#usage) yourself, call the
+gated job this repo publishes:
+
+```yaml
+name: issue-bot
+
+on:
+  pull_request_review_comment:
+    types: [created, edited]
+  issue_comment:
+    types: [created, edited]
+
+jobs:
+  issue-bot:
+    uses: dfadler/issue-bot/.github/workflows/reusable.yml@v1 # pin to a commit SHA instead
+    permissions:
+      issues: write
+      pull-requests: write
+```
+
+All inputs are optional and default to the same values as the action itself
+(see [Inputs](#inputs)). To override one, or to run a different `dfadler/issue-bot`
+ref or token:
+
+```yaml
+jobs:
+  issue-bot:
+    uses: dfadler/issue-bot/.github/workflows/reusable.yml@v1 # pin to a commit SHA instead
+    permissions:
+      issues: write
+      pull-requests: write
+    with:
+      label: "" # skip labeling
+      ref: "<commit-sha>" # pin the action's own ref too — see below
+    secrets:
+      github-token: ${{ secrets.MY_TOKEN }} # defaults to the calling job's GITHUB_TOKEN
+```
+
+The called job carries the same `if:` gate shown above, mirroring the
+action's own internal checks — a matching mention, a PR context (not a
+plain issue, for `issue_comment`), a non-bot author, and write access
+(`OWNER`/`MEMBER`/`COLLABORATOR`) — so a comment that doesn't pass never
+boots a runner at all. Everything else about it is the same action:
+
+- **Permissions are still yours to grant.** A called workflow doesn't
+  inherit permissions from the caller automatically; set `issues: write`
+  and `pull-requests: write` on the calling job as shown above.
+- **`with.ref`** (default `v1`) picks which `dfadler/issue-bot` ref the
+  gated job actually runs — separate from the ref you pin on the `uses:`
+  line above, which only pins *this reusable workflow file*. Pin both to a
+  commit SHA for the reasons described under [Usage](#usage); the default
+  `v1` is a convenience for getting started, not a recommended pin.
+- **Outputs** (`filed`, `issue-number`, `issue-url`) and every `with:`
+  input mirror the [action's own](#inputs) — see [Inputs](#inputs) and
+  [Outputs](#outputs) above.
+- If the job's `if:` skips the run, `jobs.issue-bot.outputs.*` are simply
+  unset — check `jobs.issue-bot.result` if you need to distinguish "skipped"
+  from "ran and didn't file".
 
 ## Development
 
