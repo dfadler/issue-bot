@@ -13,7 +13,9 @@
     "test": "vitest run",
     "check:action-runtime": "node scripts/check-action-runtime.mjs",
     "generate:cost-guard": "node scripts/generate-cost-guard.mjs",
-    "check:cost-guard": "node scripts/generate-cost-guard.mjs --check"
+    "check:cost-guard": "node scripts/generate-cost-guard.mjs --check",
+    "generate:sha-pins": "node scripts/generate-sha-pins.mjs",
+    "check:sha-pins": "node scripts/generate-sha-pins.mjs --check"
   },
   "dependencies": {
     "@actions/core": "^3.0.1",
