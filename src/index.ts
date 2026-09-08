@@ -84,12 +84,18 @@ export async function handleEvent(
       core.info(`Comment author is not authorized to file issues (association: ${comment.author_association}); skipping.`);
       return null;
     }
-    await octokit.rest.reactions.createForPullRequestReviewComment({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      comment_id: comment.id,
-      content: "eyes",
-    });
+    try {
+      await octokit.rest.reactions.createForPullRequestReviewComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        comment_id: comment.id,
+        content: "eyes",
+      });
+    } catch (error: unknown) {
+      core.warning(
+        `Failed to react to review comment ${comment.id}; continuing without it: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     const { rootId, conversation } = await fetchReviewThreadContext(
       octokit,
       context.repo.owner,
@@ -149,12 +155,18 @@ export async function handleEvent(
       core.info(`Comment author is not authorized to file issues (association: ${comment.author_association}); skipping.`);
       return null;
     }
-    await octokit.rest.reactions.createForIssueComment({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      comment_id: comment.id,
-      content: "eyes",
-    });
+    try {
+      await octokit.rest.reactions.createForIssueComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        comment_id: comment.id,
+        content: "eyes",
+      });
+    } catch (error: unknown) {
+      core.warning(
+        `Failed to react to comment ${comment.id}; continuing without it: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     const conversation = await fetchRecentIssueComments(
       octokit,
       context.repo.owner,

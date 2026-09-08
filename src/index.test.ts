@@ -1,8 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import * as core from "@actions/core";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { backlinkUrl } from "./followUpIssue.js";
 import { handleEvent, type EventContext } from "./index.js";
 import type { CreatedIssueApi, Octokit } from "./octokit.js";
 import type { IssueCommentPayload, ReviewCommentPayload } from "./payloads.js";
+
+vi.mock("@actions/core", () => ({
+  info: vi.fn(),
+  warning: vi.fn(),
+  setFailed: vi.fn(),
+  setOutput: vi.fn(),
+  getInput: vi.fn(),
+}));
+
+const warning = vi.mocked(core.warning);
+
+beforeEach(() => {
+  warning.mockClear();
+});
 
 const MENTION = "@issue-bot";
 
@@ -276,6 +291,30 @@ describe("handleEvent - pull_request_review_comment", () => {
     );
   });
 
+  it("logs a warning and still files the issue when the reaction call rejects (e.g. insufficient permissions)", async () => {
+    const comment = reviewComment({ id: 1, author_association: "COLLABORATOR" });
+    const createForPullRequestReviewComment = vi.fn(async () => {
+      throw new Error("Resource not accessible by integration");
+    });
+    const octokit = createFakeOctokit({
+      listReviewComments: async () => ({ data: [comment] }),
+      create: async () => ({ data: createdIssue() }),
+      createForPullRequestReviewComment,
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "pull_request_review_comment",
+      payload: { comment, pull_request: { number: 7 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(createForPullRequestReviewComment).toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("Resource not accessible by integration"));
+    expect(result).toEqual({ filed: true, issueNumber: 99, issueUrl: createdIssue().html_url });
+  });
+
   it("does not post a success comment when an existing issue already covers the thread", async () => {
     const comment = reviewComment({
       id: 1,
@@ -377,6 +416,30 @@ describe("handleEvent - issue_comment", () => {
 
     expect(result).toBeNull();
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("logs a warning and still files the issue when the reaction call rejects (e.g. insufficient permissions)", async () => {
+    const comment = issueComment({ id: 5, body: `${MENTION} file this` });
+    const createForIssueComment = vi.fn(async () => {
+      throw new Error("Resource not accessible by integration");
+    });
+    const octokit = createFakeOctokit({
+      listComments: async () => ({ data: [] }),
+      create: async () => ({ data: createdIssue({ number: 12 }) }),
+      createForIssueComment,
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "issue_comment",
+      payload: { comment, issue: { number: 3, pull_request: {} } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(createForIssueComment).toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("Resource not accessible by integration"));
+    expect(result).toEqual({ filed: true, issueNumber: 12, issueUrl: createdIssue({ number: 12 }).html_url });
   });
 
   it("returns null and files nothing when the mentioning commenter is a bot account (regression for issue-bot#29)", async () => {
