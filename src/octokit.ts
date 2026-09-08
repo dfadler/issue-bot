@@ -53,6 +53,24 @@ export type Octokit = {
         pull_number: number;
         per_page?: number;
       }): Promise<{ data: ReviewCommentApi[] }>;
+      createReplyForReviewComment(params: {
+        owner: string;
+        repo: string;
+        pull_number: number;
+        comment_id: number;
+        body: string;
+      }): Promise<unknown>;
+      get(params: {
+        owner: string;
+        repo: string;
+        pull_number: number;
+      }): Promise<{ data: { title: string; body: string | null } }>;
+      listFiles(params: {
+        owner: string;
+        repo: string;
+        pull_number: number;
+        per_page?: number;
+      }): Promise<{ data: { filename: string }[] }>;
     };
     issues: {
       listComments(params: {

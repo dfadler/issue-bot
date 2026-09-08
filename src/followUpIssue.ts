@@ -70,6 +70,25 @@ export type ConversationEntry = {
 };
 
 /**
+ * Deterministic (no LLM) supporting context pulled from the pull request
+ * itself, so a filed issue doesn't rely solely on the trigger comment - see
+ * https://github.com/dfadler/zombie-mermaid/issues/665, whose body carried
+ * no context beyond the literal comment that mentioned the bot.
+ */
+export type PullRequestSummary = {
+  title: string;
+  body: string | null;
+  changedFiles: string[];
+};
+
+const MAX_PR_DESCRIPTION_CHARS = 500;
+const MAX_LISTED_CHANGED_FILES = 20;
+
+function truncate(text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
+}
+
+/**
  * Matches a leading "please file/create/open/log/make an issue to/for/about/regarding"
  * so the title reflects the work being requested rather than the request to file an
  * issue itself (see https://github.com/dfadler/issue-bot/issues/36). The preposition
@@ -98,8 +117,9 @@ export function buildIssueBody(params: {
   repoFullName: string;
   prNumber: number;
   conversation: ConversationEntry[];
+  pullRequest?: PullRequestSummary;
 }): string {
-  const { comment, repoFullName, prNumber, conversation } = params;
+  const { comment, repoFullName, prNumber, conversation, pullRequest } = params;
   const sections: string[] = [];
 
   sections.push(
@@ -110,6 +130,27 @@ export function buildIssueBody(params: {
 
   if (comment.path !== undefined && comment.diffHunk !== undefined) {
     sections.push("", `### Related code (\`${comment.path}\`)`, "```diff", comment.diffHunk, "```");
+  }
+
+  if (pullRequest !== undefined) {
+    const description = pullRequest.body?.trim();
+    sections.push(
+      "",
+      `### Pull request context`,
+      `**[#${prNumber}](https://github.com/${repoFullName}/pull/${prNumber}): ${pullRequest.title}**`,
+      "",
+      description ? truncate(description, MAX_PR_DESCRIPTION_CHARS) : "_No description provided._",
+    );
+    if (pullRequest.changedFiles.length > 0) {
+      const shown = pullRequest.changedFiles.slice(0, MAX_LISTED_CHANGED_FILES);
+      const remaining = pullRequest.changedFiles.length - shown.length;
+      sections.push(
+        "",
+        `**Files changed:** ${shown.map((file) => `\`${file}\``).join(", ")}${
+          remaining > 0 ? `, and ${remaining} more` : ""
+        }`,
+      );
+    }
   }
 
   if (conversation.length > 0) {
@@ -166,6 +207,7 @@ export type FileIssueParams = {
   prNumber: number;
   comment: TriggerComment;
   conversation: ConversationEntry[];
+  pullRequest?: PullRequestSummary;
   mention: string;
   label: string;
 };
@@ -216,6 +258,7 @@ export async function fileIssueFromComment(params: FileIssueParams): Promise<Fil
       repoFullName: params.repoFullName,
       prNumber: params.prNumber,
       conversation: params.conversation,
+      pullRequest: params.pullRequest,
     }),
     labels: params.label.length > 0 ? [params.label] : undefined,
   });
