@@ -323,6 +323,30 @@ describe("handleEvent - pull_request_review_comment", () => {
     expect(result).toEqual({ filed: true, issueNumber: 99, issueUrl: createdIssue().html_url });
   });
 
+  it("logs a warning but still reports the issue as filed when the review-thread reply call rejects (e.g. insufficient permissions)", async () => {
+    const comment = reviewComment({ id: 1, author_association: "COLLABORATOR" });
+    const createReplyForReviewComment = vi.fn(async () => {
+      throw new Error("Resource not accessible by integration");
+    });
+    const octokit = createFakeOctokit({
+      listReviewComments: async () => ({ data: [comment] }),
+      create: async () => ({ data: createdIssue() }),
+      createReplyForReviewComment,
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "pull_request_review_comment",
+      payload: { comment, pull_request: { number: 7 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(createReplyForReviewComment).toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("Resource not accessible by integration"));
+    expect(result).toEqual({ filed: true, issueNumber: 99, issueUrl: createdIssue().html_url });
+  });
+
   it("does not post a success reply when an existing issue already covers the thread", async () => {
     const comment = reviewComment({
       id: 1,
@@ -446,6 +470,30 @@ describe("handleEvent - issue_comment", () => {
     const result = await handleEvent(octokit, context, OPTIONS);
 
     expect(createForIssueComment).toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("Resource not accessible by integration"));
+    expect(result).toEqual({ filed: true, issueNumber: 12, issueUrl: createdIssue({ number: 12 }).html_url });
+  });
+
+  it("logs a warning but still reports the issue as filed when the confirmation comment call rejects (e.g. insufficient permissions)", async () => {
+    const comment = issueComment({ id: 5, body: `${MENTION} file this` });
+    const createComment = vi.fn(async () => {
+      throw new Error("Resource not accessible by integration");
+    });
+    const octokit = createFakeOctokit({
+      listComments: async () => ({ data: [] }),
+      create: async () => ({ data: createdIssue({ number: 12 }) }),
+      createComment,
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "issue_comment",
+      payload: { comment, issue: { number: 3, pull_request: {} } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS);
+
+    expect(createComment).toHaveBeenCalled();
     expect(warning).toHaveBeenCalledWith(expect.stringContaining("Resource not accessible by integration"));
     expect(result).toEqual({ filed: true, issueNumber: 12, issueUrl: createdIssue({ number: 12 }).html_url });
   });
