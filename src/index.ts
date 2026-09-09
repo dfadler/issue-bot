@@ -124,13 +124,19 @@ export async function handleEvent(
       // Reply inline in the review thread that triggered this, rather than
       // posting a general PR conversation comment (issues.createComment)
       // that's disconnected from the thread it was filed from.
-      await octokit.rest.pulls.createReplyForReviewComment({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        pull_number: pullRequest.number,
-        comment_id: comment.id,
-        body: buildFiledCommentBody(result.issueNumber, result.issueUrl),
-      });
+      try {
+        await octokit.rest.pulls.createReplyForReviewComment({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: pullRequest.number,
+          comment_id: comment.id,
+          body: buildFiledCommentBody(result.issueNumber, result.issueUrl),
+        });
+      } catch (error: unknown) {
+        core.warning(
+          `Filed issue #${result.issueNumber} but failed to reply on review comment ${comment.id}; continuing: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
     return result;
   }
@@ -192,12 +198,18 @@ export async function handleEvent(
       label,
     });
     if (result.filed) {
-      await octokit.rest.issues.createComment({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        issue_number: issue.number,
-        body: buildFiledCommentBody(result.issueNumber, result.issueUrl),
-      });
+      try {
+        await octokit.rest.issues.createComment({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          issue_number: issue.number,
+          body: buildFiledCommentBody(result.issueNumber, result.issueUrl),
+        });
+      } catch (error: unknown) {
+        core.warning(
+          `Filed issue #${result.issueNumber} but failed to comment on ${repoFullName}#${issue.number}; continuing: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
     return result;
   }
