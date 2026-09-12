@@ -22,9 +22,9 @@
     "@actions/github": "^9.1.1"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.5.0",
     "esbuild": "^0.28.2",
-    "oxlint": "^1.81.0",
+    "oxlint": "^1.82.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
