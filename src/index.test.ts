@@ -364,7 +364,7 @@ describe("handleEvent - pull_request_review_comment", () => {
           {
             number: 5,
             html_url: "https://github.com/owner/repo/issues/5",
-            body: `Filed from ${backlinkUrl("owner/repo", 7, "review", 1)}.`,
+            body: `Filed from ${backlinkUrl("owner/repo", 7, "pull", "review", 1)}.`,
           },
         ],
       }),

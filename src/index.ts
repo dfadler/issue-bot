@@ -119,7 +119,8 @@ export async function handleEvent(
     const result = await fileIssueFromComment({
       octokit,
       repoFullName,
-      prNumber: pullRequest.number,
+      containerNumber: pullRequest.number,
+      containerKind: "pull",
       comment: trigger,
       conversation,
       pullRequest: pullRequestSummary,
@@ -193,7 +194,7 @@ export async function handleEvent(
     ]);
     const trigger: TriggerComment = {
       id: comment.id,
-      kind: "issue",
+      kind: "conversation",
       author: comment.user?.login ?? "unknown",
       body: comment.body,
       htmlUrl: comment.html_url,
@@ -202,7 +203,8 @@ export async function handleEvent(
     const result = await fileIssueFromComment({
       octokit,
       repoFullName,
-      prNumber: issue.number,
+      containerNumber: issue.number,
+      containerKind,
       comment: trigger,
       conversation,
       pullRequest: pullRequestSummary,

@@ -1,23 +1,36 @@
 import type { Octokit } from "./octokit.js";
 
-export type BacklinkKind = "review" | "issue";
+/**
+ * Comment *style* - inline review comment vs. general PR/issue conversation
+ * comment. Distinct from `ContainerKind` below (is the comment on a PR or a
+ * plain issue?) - both being spelled with an `"issue"` literal historically
+ * made a positional swap between them compile silently, hence this rename
+ * (was `BacklinkKind`, with `"issue"` where `"conversation"` now reads).
+ */
+export type CommentKind = "review" | "conversation";
+
+/** Is the comment's container a pull request or a plain issue? */
+export type ContainerKind = "pull" | "issue";
 
 /**
  * The exact permalink fragment GitHub itself generates for a comment -
  * used both as the back-link in a filed issue's body and as the dedup
  * marker searched for in every open issue's body. Ported from
  * claude-review-app's followUpIssue.ts (`threadUrl`), generalized to
- * cover both review comments (`#discussion_r<id>`) and general PR
- * conversation comments (`#issuecomment-<id>`).
+ * cover both review comments (`#discussion_r<id>`) and general
+ * conversation comments (`#issuecomment-<id>`), and both container kinds
+ * (`/pull/N` vs `/issues/N`).
  */
 export function backlinkUrl(
   repoFullName: string,
-  prNumber: number,
-  kind: BacklinkKind,
+  containerNumber: number,
+  containerKind: ContainerKind,
+  commentKind: CommentKind,
   commentId: number,
 ): string {
-  const fragment = kind === "review" ? `discussion_r${commentId}` : `issuecomment-${commentId}`;
-  return `https://github.com/${repoFullName}/pull/${prNumber}#${fragment}`;
+  const fragment = commentKind === "review" ? `discussion_r${commentId}` : `issuecomment-${commentId}`;
+  const containerSegment = containerKind === "pull" ? "pull" : "issues";
+  return `https://github.com/${repoFullName}/${containerSegment}/${containerNumber}#${fragment}`;
 }
 
 /**
@@ -25,8 +38,8 @@ export function backlinkUrl(
  * unrelated issue's "discussion_r1004" (100 is a substring of 1004) - same
  * reasoning as claude-review-app's dedupMarkerPattern.
  */
-function dedupMarkerPattern(kind: BacklinkKind, commentId: number): RegExp {
-  const prefix = kind === "review" ? "discussion_r" : "issuecomment-";
+function dedupMarkerPattern(commentKind: CommentKind, commentId: number): RegExp {
+  const prefix = commentKind === "review" ? "discussion_r" : "issuecomment-";
   return new RegExp(`${prefix}${commentId}([^0-9]|$)`);
 }
 
@@ -41,12 +54,13 @@ export type OpenIssueSummary = { number: number; url: string; body: string | nul
 export function findExistingIssue(
   openIssues: OpenIssueSummary[],
   repoFullName: string,
-  prNumber: number,
-  kind: BacklinkKind,
+  containerNumber: number,
+  containerKind: ContainerKind,
+  commentKind: CommentKind,
   commentId: number,
 ): OpenIssueSummary | null {
-  const pattern = dedupMarkerPattern(kind, commentId);
-  const expectedUrl = backlinkUrl(repoFullName, prNumber, kind, commentId);
+  const pattern = dedupMarkerPattern(commentKind, commentId);
+  const expectedUrl = backlinkUrl(repoFullName, containerNumber, containerKind, commentKind, commentId);
   return (
     openIssues.find((issue) => issue.body?.includes(expectedUrl) && pattern.test(issue.body)) ?? null
   );
@@ -54,7 +68,7 @@ export function findExistingIssue(
 
 export type TriggerComment = {
   id: number;
-  kind: BacklinkKind;
+  kind: CommentKind;
   author: string;
   body: string;
   htmlUrl: string;
@@ -108,19 +122,20 @@ export function buildIssueTitle(commentBody: string, mention: string): string {
   const mentionPattern = new RegExp(mention.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
   const withoutMention = firstLine.replace(mentionPattern, "").trim();
   const withoutImperative = withoutMention.replace(FILING_IMPERATIVE_PATTERN, "").trim();
-  const title = withoutImperative.length > 0 ? withoutImperative : "Follow-up from PR comment";
+  const title = withoutImperative.length > 0 ? withoutImperative : "Follow-up from comment";
   return title.length > 80 ? `${title.slice(0, 79)}…` : title;
 }
 
 export function buildIssueBody(params: {
   comment: TriggerComment;
   repoFullName: string;
-  prNumber: number;
+  containerNumber: number;
+  containerKind: ContainerKind;
   conversation: ConversationEntry[];
   pullRequest?: PullRequestSummary;
   parentIssue?: { title: string; body: string | null };
 }): string {
-  const { comment, repoFullName, prNumber, conversation, pullRequest, parentIssue } = params;
+  const { comment, repoFullName, containerNumber, containerKind, conversation, pullRequest, parentIssue } = params;
   const sections: string[] = [];
 
   sections.push(
@@ -138,7 +153,7 @@ export function buildIssueBody(params: {
     sections.push(
       "",
       `### Pull request context`,
-      `**[#${prNumber}](https://github.com/${repoFullName}/pull/${prNumber}): ${pullRequest.title}**`,
+      `**[#${containerNumber}](https://github.com/${repoFullName}/pull/${containerNumber}): ${pullRequest.title}**`,
       "",
       description ? truncate(description, MAX_DESCRIPTION_CHARS) : "_No description provided._",
     );
@@ -159,7 +174,7 @@ export function buildIssueBody(params: {
     sections.push(
       "",
       `### Issue context`,
-      `**[#${prNumber}](https://github.com/${repoFullName}/issues/${prNumber}): ${parentIssue.title}**`,
+      `**[#${containerNumber}](https://github.com/${repoFullName}/issues/${containerNumber}): ${parentIssue.title}**`,
       "",
       description ? truncate(description, MAX_DESCRIPTION_CHARS) : "_No description provided._",
     );
@@ -173,7 +188,11 @@ export function buildIssueBody(params: {
     );
   }
 
-  sections.push("", "---", `Filed from ${backlinkUrl(repoFullName, prNumber, comment.kind, comment.id)}.`);
+  sections.push(
+    "",
+    "---",
+    `Filed from ${backlinkUrl(repoFullName, containerNumber, containerKind, comment.kind, comment.id)}.`,
+  );
 
   return sections.join("\n");
 }
@@ -216,7 +235,8 @@ export async function ensureLabelExists(
 export type FileIssueParams = {
   octokit: Octokit;
   repoFullName: string;
-  prNumber: number;
+  containerNumber: number;
+  containerKind: ContainerKind;
   comment: TriggerComment;
   conversation: ConversationEntry[];
   pullRequest?: PullRequestSummary;
@@ -250,7 +270,8 @@ export async function fileIssueFromComment(params: FileIssueParams): Promise<Fil
   const existing = findExistingIssue(
     openIssues.map((issue) => ({ number: issue.number, url: issue.html_url, body: issue.body ?? null })),
     params.repoFullName,
-    params.prNumber,
+    params.containerNumber,
+    params.containerKind,
     params.comment.kind,
     params.comment.id,
   );
@@ -269,7 +290,8 @@ export async function fileIssueFromComment(params: FileIssueParams): Promise<Fil
     body: buildIssueBody({
       comment: params.comment,
       repoFullName: params.repoFullName,
-      prNumber: params.prNumber,
+      containerNumber: params.containerNumber,
+      containerKind: params.containerKind,
       conversation: params.conversation,
       pullRequest: params.pullRequest,
       parentIssue: params.parentIssue,
