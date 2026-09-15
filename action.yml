@@ -19,6 +19,10 @@ inputs:
     description: "What to do when this pinned version of issue-bot is older than the latest dfadler/issue-bot release: \"fail\" (default) fails the run with the exact `uses:` line to update to, \"warn\" logs the same as a warning and continues, \"off\" skips the check. Lookup errors (network, rate limit) only ever warn — see README."
     required: false
     default: "fail"
+  allow-plain-issues:
+    description: "Whether to also file issues from @mention comments on plain GitHub issues, not just pull requests. Defaults to false so existing consumers see no behavior change until they opt in — see README."
+    required: false
+    default: "false"
 
 outputs:
   filed:
