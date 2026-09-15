@@ -1,5 +1,5 @@
-name: "PR Comment Issue Bot"
-description: "File a GitHub issue from a PR comment by mentioning @issue-bot, capturing the comment, its thread, and the related code."
+name: "Issue Bot"
+description: "File a GitHub issue from a pull request or issue comment by mentioning @issue-bot, capturing the comment, its thread, and the related code."
 author: "dfadler"
 
 inputs:
