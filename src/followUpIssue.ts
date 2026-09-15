@@ -81,7 +81,7 @@ export type PullRequestSummary = {
   changedFiles: string[];
 };
 
-const MAX_PR_DESCRIPTION_CHARS = 500;
+const MAX_DESCRIPTION_CHARS = 500;
 const MAX_LISTED_CHANGED_FILES = 20;
 
 function truncate(text: string, maxChars: number): string {
@@ -118,8 +118,9 @@ export function buildIssueBody(params: {
   prNumber: number;
   conversation: ConversationEntry[];
   pullRequest?: PullRequestSummary;
+  parentIssue?: { title: string; body: string | null };
 }): string {
-  const { comment, repoFullName, prNumber, conversation, pullRequest } = params;
+  const { comment, repoFullName, prNumber, conversation, pullRequest, parentIssue } = params;
   const sections: string[] = [];
 
   sections.push(
@@ -139,7 +140,7 @@ export function buildIssueBody(params: {
       `### Pull request context`,
       `**[#${prNumber}](https://github.com/${repoFullName}/pull/${prNumber}): ${pullRequest.title}**`,
       "",
-      description ? truncate(description, MAX_PR_DESCRIPTION_CHARS) : "_No description provided._",
+      description ? truncate(description, MAX_DESCRIPTION_CHARS) : "_No description provided._",
     );
     if (pullRequest.changedFiles.length > 0) {
       const shown = pullRequest.changedFiles.slice(0, MAX_LISTED_CHANGED_FILES);
@@ -151,6 +152,17 @@ export function buildIssueBody(params: {
         }`,
       );
     }
+  }
+
+  if (parentIssue !== undefined) {
+    const description = parentIssue.body?.trim();
+    sections.push(
+      "",
+      `### Issue context`,
+      `**[#${prNumber}](https://github.com/${repoFullName}/issues/${prNumber}): ${parentIssue.title}**`,
+      "",
+      description ? truncate(description, MAX_DESCRIPTION_CHARS) : "_No description provided._",
+    );
   }
 
   if (conversation.length > 0) {
@@ -208,6 +220,7 @@ export type FileIssueParams = {
   comment: TriggerComment;
   conversation: ConversationEntry[];
   pullRequest?: PullRequestSummary;
+  parentIssue?: { title: string; body: string | null };
   mention: string;
   label: string;
 };
@@ -259,6 +272,7 @@ export async function fileIssueFromComment(params: FileIssueParams): Promise<Fil
       prNumber: params.prNumber,
       conversation: params.conversation,
       pullRequest: params.pullRequest,
+      parentIssue: params.parentIssue,
     }),
     labels: params.label.length > 0 ? [params.label] : undefined,
   });

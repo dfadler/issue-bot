@@ -41,6 +41,7 @@ function createFakeOctokit(overrides: {
   listFiles?: Octokit["rest"]["pulls"]["listFiles"];
   listComments?: Octokit["rest"]["issues"]["listComments"];
   listForRepo?: Octokit["rest"]["issues"]["listForRepo"];
+  getIssue?: Octokit["rest"]["issues"]["get"];
   getLabel?: Octokit["rest"]["issues"]["getLabel"];
   createLabel?: Octokit["rest"]["issues"]["createLabel"];
   create?: Octokit["rest"]["issues"]["create"];
@@ -64,6 +65,7 @@ function createFakeOctokit(overrides: {
       issues: {
         listComments: overrides.listComments ?? notImplemented("issues.listComments"),
         listForRepo: overrides.listForRepo ?? (async () => ({ data: [] })),
+        get: overrides.getIssue ?? (async () => ({ data: { title: "", body: null } })),
         getLabel: overrides.getLabel ?? notImplemented("issues.getLabel"),
         createLabel: overrides.createLabel ?? notImplemented("issues.createLabel"),
         create: overrides.create ?? notImplemented("issues.create"),

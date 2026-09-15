@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { collectThreadComments, fetchPullRequestSummary, threadRootId, type ThreadableComment } from "./threadContext.js";
+import {
+  collectThreadComments,
+  fetchIssueSummary,
+  fetchPullRequestSummary,
+  threadRootId,
+  type ThreadableComment,
+} from "./threadContext.js";
 import type { Octokit } from "./octokit.js";
 
 describe("threadRootId", () => {
@@ -75,6 +81,9 @@ describe("fetchPullRequestSummary", () => {
           listForRepo: () => {
             throw new Error("not expected to be called");
           },
+          get: () => {
+            throw new Error("not expected to be called");
+          },
           getLabel: () => {
             throw new Error("not expected to be called");
           },
@@ -126,5 +135,93 @@ describe("fetchPullRequestSummary", () => {
     const summary = await fetchPullRequestSummary(octokit, "owner", "repo", 7);
 
     expect(summary.body).toBeNull();
+  });
+});
+
+describe("fetchIssueSummary", () => {
+  function fakeOctokit(overrides: { get?: Octokit["rest"]["issues"]["get"] }): Octokit {
+    return {
+      paginate: () => {
+        throw new Error("fetchIssueSummary should not paginate");
+      },
+      rest: {
+        pulls: {
+          listReviewComments: () => {
+            throw new Error("not expected to be called");
+          },
+          createReplyForReviewComment: () => {
+            throw new Error("not expected to be called");
+          },
+          get: () => {
+            throw new Error("not expected to be called");
+          },
+          listFiles: () => {
+            throw new Error("not expected to be called");
+          },
+        },
+        issues: {
+          listComments: () => {
+            throw new Error("not expected to be called");
+          },
+          listForRepo: () => {
+            throw new Error("not expected to be called");
+          },
+          get: overrides.get ?? (async () => ({ data: { title: "", body: null } })),
+          getLabel: () => {
+            throw new Error("not expected to be called");
+          },
+          createLabel: () => {
+            throw new Error("not expected to be called");
+          },
+          create: () => {
+            throw new Error("not expected to be called");
+          },
+          createComment: () => {
+            throw new Error("not expected to be called");
+          },
+        },
+        repos: {
+          listTags: () => {
+            throw new Error("not expected to be called");
+          },
+        },
+        reactions: {
+          createForIssueComment: () => {
+            throw new Error("not expected to be called");
+          },
+          createForPullRequestReviewComment: () => {
+            throw new Error("not expected to be called");
+          },
+        },
+      },
+    };
+  }
+
+  it("returns the parent issue's title and description", async () => {
+    const octokit = fakeOctokit({
+      get: async () => ({ data: { title: "Support plain issues", body: "Some context." } }),
+    });
+
+    const summary = await fetchIssueSummary(octokit, "owner", "repo", 53);
+
+    expect(summary).toEqual({ title: "Support plain issues", body: "Some context." });
+  });
+
+  it("passes through a null/undefined description as null rather than inventing one", async () => {
+    const octokit = fakeOctokit({ get: async () => ({ data: { title: "No description issue" } }) });
+
+    const summary = await fetchIssueSummary(octokit, "owner", "repo", 53);
+
+    expect(summary.body).toBeNull();
+  });
+
+  it("propagates a fetch failure rather than swallowing it", async () => {
+    const octokit = fakeOctokit({
+      get: async () => {
+        throw new Error("boom");
+      },
+    });
+
+    await expect(fetchIssueSummary(octokit, "owner", "repo", 53)).rejects.toThrow("boom");
   });
 });

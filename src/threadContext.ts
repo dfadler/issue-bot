@@ -139,3 +139,21 @@ export async function fetchPullRequestSummary(
     changedFiles: files.map((file) => file.filename),
   };
 }
+
+/**
+ * Deterministic supporting context for the issue body when the trigger is a
+ * plain-issue comment - the parent issue's own title and description, the
+ * analog of `fetchPullRequestSummary` for a container that has no diff to
+ * summarize. Same fail-hard posture as `fetchPullRequestSummary`: a fetch
+ * failure propagates rather than being swallowed, so the two paths behave
+ * consistently.
+ */
+export async function fetchIssueSummary(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+): Promise<{ title: string; body: string | null }> {
+  const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: issueNumber });
+  return { title: data.title, body: data.body ?? null };
+}

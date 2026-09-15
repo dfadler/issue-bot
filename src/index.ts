@@ -10,7 +10,12 @@ import {
 import { hasMention } from "./mention.js";
 import type { Octokit } from "./octokit.js";
 import { isBotAuthor, isIssueCommentEventPayload, isPullRequestReviewCommentEventPayload } from "./payloads.js";
-import { fetchPullRequestSummary, fetchRecentIssueComments, fetchReviewThreadContext } from "./threadContext.js";
+import {
+  fetchIssueSummary,
+  fetchPullRequestSummary,
+  fetchRecentIssueComments,
+  fetchReviewThreadContext,
+} from "./threadContext.js";
 import { builtVersion, parseVersionCheckMode, runVersionCheck, versionCheckModeList } from "./versionCheck.js";
 
 /**
@@ -177,10 +182,13 @@ export async function handleEvent(
         `Failed to react to comment ${comment.id}; continuing without it: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    const [conversation, pullRequestSummary] = await Promise.all([
+    const [conversation, pullRequestSummary, parentIssueSummary] = await Promise.all([
       fetchRecentIssueComments(octokit, context.repo.owner, context.repo.repo, issue.number, comment.id),
       containerKind === "pull"
         ? fetchPullRequestSummary(octokit, context.repo.owner, context.repo.repo, issue.number)
+        : Promise.resolve(undefined),
+      containerKind === "issue"
+        ? fetchIssueSummary(octokit, context.repo.owner, context.repo.repo, issue.number)
         : Promise.resolve(undefined),
     ]);
     const trigger: TriggerComment = {
@@ -198,6 +206,7 @@ export async function handleEvent(
       comment: trigger,
       conversation,
       pullRequest: pullRequestSummary,
+      parentIssue: parentIssueSummary,
       mention,
       label,
     });
