@@ -286,6 +286,46 @@ describe("buildIssueBody", () => {
     expect(body).not.toContain("`src/file20.ts`");
     expect(body).toContain("and 5 more");
   });
+
+  it("includes the parent issue's title and description, mutually exclusive with the PR context section", () => {
+    const body = buildIssueBody({
+      comment: {
+        id: 1,
+        kind: "issue",
+        author: "octocat",
+        body: "@issue-bot look at this",
+        htmlUrl: "https://github.com/owner/repo/issues/53#issuecomment-1",
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+      repoFullName: "owner/repo",
+      prNumber: 53,
+      conversation: [],
+      parentIssue: { title: "Support filing issues from plain-issue comments", body: "Some context." },
+    });
+    expect(body).toContain("### Issue context");
+    expect(body).toContain("[#53](https://github.com/owner/repo/issues/53): Support filing issues from plain-issue comments");
+    expect(body).toContain("Some context.");
+    expect(body).not.toContain("**Files changed:**");
+    expect(body).not.toContain("### Pull request context");
+  });
+
+  it("notes a missing parent issue description instead of leaving the section blank", () => {
+    const body = buildIssueBody({
+      comment: {
+        id: 1,
+        kind: "issue",
+        author: "octocat",
+        body: "@issue-bot look at this",
+        htmlUrl: "https://github.com/owner/repo/issues/53#issuecomment-1",
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+      repoFullName: "owner/repo",
+      prNumber: 53,
+      conversation: [],
+      parentIssue: { title: "No description issue", body: null },
+    });
+    expect(body).toContain("_No description provided._");
+  });
 });
 
 describe("buildFiledCommentBody", () => {
@@ -345,6 +385,7 @@ describe("fileIssueFromComment", () => {
             const start = (listForRepoCallCount - 1) * perPage;
             return { data: openIssues.slice(start, start + perPage) };
           },
+          get: notImplemented("issues.get"),
           getLabel: async () => undefined,
           createLabel: async () => undefined,
           create: async () => ({

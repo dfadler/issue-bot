@@ -85,6 +85,11 @@ export type Octokit = {
         state?: "open" | "closed" | "all";
         per_page?: number;
       }): Promise<{ data: IssueApi[] }>;
+      get(params: {
+        owner: string;
+        repo: string;
+        issue_number: number;
+      }): Promise<{ data: { title: string; body?: string | null } }>;
       getLabel(params: { owner: string; repo: string; name: string }): Promise<unknown>;
       createLabel(params: { owner: string; repo: string; name: string; color?: string }): Promise<unknown>;
       create(params: {
