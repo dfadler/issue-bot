@@ -18,22 +18,34 @@ function notImplemented(name: string): () => never {
 }
 
 describe("backlinkUrl", () => {
-  it("builds a discussion permalink for review comments", () => {
-    expect(backlinkUrl("owner/repo", 42, "review", 100)).toBe(
+  it("builds a discussion permalink for review comments on a pull request", () => {
+    expect(backlinkUrl("owner/repo", 42, "pull", "review", 100)).toBe(
       "https://github.com/owner/repo/pull/42#discussion_r100",
     );
   });
 
-  it("builds an issue-comment permalink for issue comments", () => {
-    expect(backlinkUrl("owner/repo", 42, "issue", 5)).toBe(
+  it("builds an issue-comment permalink for conversation comments on a pull request", () => {
+    expect(backlinkUrl("owner/repo", 42, "pull", "conversation", 5)).toBe(
       "https://github.com/owner/repo/pull/42#issuecomment-5",
+    );
+  });
+
+  it("builds an issues/N permalink, not pull/N, for a plain-issue container", () => {
+    expect(backlinkUrl("owner/repo", 53, "issue", "conversation", 5)).toBe(
+      "https://github.com/owner/repo/issues/53#issuecomment-5",
+    );
+  });
+
+  it("builds an issues/N discussion permalink for a review-style comment on a plain-issue container", () => {
+    expect(backlinkUrl("owner/repo", 53, "issue", "review", 100)).toBe(
+      "https://github.com/owner/repo/issues/53#discussion_r100",
     );
   });
 });
 
 describe("findExistingIssue", () => {
   const repoFullName = "owner/repo";
-  const prNumber = 42;
+  const containerNumber = 42;
 
   it("finds an issue that already backlinks the exact review comment", () => {
     const issues: OpenIssueSummary[] = [
@@ -41,10 +53,10 @@ describe("findExistingIssue", () => {
       {
         number: 2,
         url: "https://github.com/owner/repo/issues/2",
-        body: `Filed from ${backlinkUrl(repoFullName, prNumber, "review", 100)}.`,
+        body: `Filed from ${backlinkUrl(repoFullName, containerNumber, "pull", "review", 100)}.`,
       },
     ];
-    const found = findExistingIssue(issues, repoFullName, prNumber, "review", 100);
+    const found = findExistingIssue(issues, repoFullName, containerNumber, "pull", "review", 100);
     expect(found?.number).toBe(2);
   });
 
@@ -53,36 +65,56 @@ describe("findExistingIssue", () => {
       {
         number: 3,
         url: "https://github.com/owner/repo/issues/3",
-        body: `Filed from ${backlinkUrl(repoFullName, prNumber, "review", 1004)}.`,
+        body: `Filed from ${backlinkUrl(repoFullName, containerNumber, "pull", "review", 1004)}.`,
       },
     ];
-    expect(findExistingIssue(issues, repoFullName, prNumber, "review", 100)).toBeNull();
+    expect(findExistingIssue(issues, repoFullName, containerNumber, "pull", "review", 100)).toBeNull();
   });
 
-  it("does not false-positive on a numeric substring for issue comments (5 vs 55)", () => {
+  it("does not false-positive on a numeric substring for conversation comments (5 vs 55)", () => {
     const issues: OpenIssueSummary[] = [
       {
         number: 4,
         url: "https://github.com/owner/repo/issues/4",
-        body: `Filed from ${backlinkUrl(repoFullName, prNumber, "issue", 55)}.`,
+        body: `Filed from ${backlinkUrl(repoFullName, containerNumber, "pull", "conversation", 55)}.`,
       },
     ];
-    expect(findExistingIssue(issues, repoFullName, prNumber, "issue", 5)).toBeNull();
+    expect(findExistingIssue(issues, repoFullName, containerNumber, "pull", "conversation", 5)).toBeNull();
   });
 
-  it("does not match a review-comment backlink against an issue-comment lookup", () => {
+  it("does not match a review-comment backlink against a conversation-comment lookup", () => {
     const issues: OpenIssueSummary[] = [
       {
         number: 5,
         url: "https://github.com/owner/repo/issues/5",
-        body: `Filed from ${backlinkUrl(repoFullName, prNumber, "review", 100)}.`,
+        body: `Filed from ${backlinkUrl(repoFullName, containerNumber, "pull", "review", 100)}.`,
       },
     ];
-    expect(findExistingIssue(issues, repoFullName, prNumber, "issue", 100)).toBeNull();
+    expect(findExistingIssue(issues, repoFullName, containerNumber, "pull", "conversation", 100)).toBeNull();
   });
 
   it("returns null when no open issue covers this comment", () => {
-    expect(findExistingIssue([], repoFullName, prNumber, "review", 100)).toBeNull();
+    expect(findExistingIssue([], repoFullName, containerNumber, "pull", "review", 100)).toBeNull();
+  });
+
+  it("correctly dedups against the /issues/N backlink shape for a plain-issue container", () => {
+    const issues: OpenIssueSummary[] = [
+      {
+        number: 6,
+        url: "https://github.com/owner/repo/issues/6",
+        // Deliberately the *old*, buggy /pull/N shape - must NOT match a
+        // plain-issue container lookup, proving the fix actually
+        // discriminates on containerKind rather than ignoring it.
+        body: `Filed from https://github.com/${repoFullName}/pull/53#issuecomment-9.`,
+      },
+      {
+        number: 7,
+        url: "https://github.com/owner/repo/issues/7",
+        body: `Filed from ${backlinkUrl(repoFullName, 53, "issue", "conversation", 9)}.`,
+      },
+    ];
+    const found = findExistingIssue(issues, repoFullName, 53, "issue", "conversation", 9);
+    expect(found?.number).toBe(7);
   });
 });
 
@@ -95,7 +127,7 @@ describe("buildIssueTitle", () => {
   });
 
   it("falls back to a default title when nothing is left after stripping the mention", () => {
-    expect(buildIssueTitle("@issue-bot", "@issue-bot")).toBe("Follow-up from PR comment");
+    expect(buildIssueTitle("@issue-bot", "@issue-bot")).toBe("Follow-up from comment");
   });
 
   it("uses the first non-empty line", () => {
@@ -122,7 +154,7 @@ describe("buildIssueTitle", () => {
 
   it("falls back to the default title when nothing is left after stripping the imperative", () => {
     expect(buildIssueTitle("@issue-bot please file an issue for ", "@issue-bot")).toBe(
-      "Follow-up from PR comment",
+      "Follow-up from comment",
     );
   });
 
@@ -147,7 +179,8 @@ describe("buildIssueBody", () => {
         diffHunk: "@@ -1,2 +1,2 @@\n-old\n+new",
       },
       repoFullName: "owner/repo",
-      prNumber: 1,
+      containerNumber: 1,
+      containerKind: "pull",
       conversation: [],
     });
     expect(withCode).toContain("### Related code (`src/foo.ts`)");
@@ -156,14 +189,15 @@ describe("buildIssueBody", () => {
     const withoutCode = buildIssueBody({
       comment: {
         id: 2,
-        kind: "issue",
+        kind: "conversation",
         author: "octocat",
         body: "@issue-bot general comment",
         htmlUrl: "https://github.com/owner/repo/pull/1#issuecomment-2",
         createdAt: "2026-01-01T00:00:00Z",
       },
       repoFullName: "owner/repo",
-      prNumber: 1,
+      containerNumber: 1,
+      containerKind: "pull",
       conversation: [],
     });
     expect(withoutCode).not.toContain("### Related code");
@@ -180,7 +214,8 @@ describe("buildIssueBody", () => {
         createdAt: "2026-01-01T00:00:00Z",
       },
       repoFullName: "owner/repo",
-      prNumber: 1,
+      containerNumber: 1,
+      containerKind: "pull",
       conversation: [{ author: "reviewer", body: "agreed, this is out of scope", createdAt: "2026-01-01T00:00:00Z" }],
     });
     expect(body).toContain("### Conversation");
@@ -198,10 +233,30 @@ describe("buildIssueBody", () => {
         createdAt: "2026-01-01T00:00:00Z",
       },
       repoFullName: "owner/repo",
-      prNumber: 1,
+      containerNumber: 1,
+      containerKind: "pull",
       conversation: [],
     });
-    expect(body).toContain(backlinkUrl("owner/repo", 1, "review", 7));
+    expect(body).toContain(backlinkUrl("owner/repo", 1, "pull", "review", 7));
+  });
+
+  it("uses an /issues/N backlink, not /pull/N, when the container is a plain issue", () => {
+    const body = buildIssueBody({
+      comment: {
+        id: 9,
+        kind: "conversation",
+        author: "octocat",
+        body: "@issue-bot look at this",
+        htmlUrl: "https://github.com/owner/repo/issues/53#issuecomment-9",
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+      repoFullName: "owner/repo",
+      containerNumber: 53,
+      containerKind: "issue",
+      conversation: [],
+    });
+    expect(body).toContain(backlinkUrl("owner/repo", 53, "issue", "conversation", 9));
+    expect(body).not.toContain("https://github.com/owner/repo/pull/53");
   });
 
   it("omits the pull request context section when none is given", () => {
@@ -215,7 +270,8 @@ describe("buildIssueBody", () => {
         createdAt: "2026-01-01T00:00:00Z",
       },
       repoFullName: "owner/repo",
-      prNumber: 1,
+      containerNumber: 1,
+      containerKind: "pull",
       conversation: [],
     });
     expect(body).not.toContain("### Pull request context");
@@ -232,7 +288,8 @@ describe("buildIssueBody", () => {
         createdAt: "2026-01-01T00:00:00Z",
       },
       repoFullName: "owner/repo",
-      prNumber: 1,
+      containerNumber: 1,
+      containerKind: "pull",
       conversation: [],
       pullRequest: {
         title: "Add territory extraction",
@@ -257,7 +314,8 @@ describe("buildIssueBody", () => {
         createdAt: "2026-01-01T00:00:00Z",
       },
       repoFullName: "owner/repo",
-      prNumber: 1,
+      containerNumber: 1,
+      containerKind: "pull",
       conversation: [],
       pullRequest: { title: "No description PR", body: null, changedFiles: [] },
     });
@@ -277,7 +335,8 @@ describe("buildIssueBody", () => {
         createdAt: "2026-01-01T00:00:00Z",
       },
       repoFullName: "owner/repo",
-      prNumber: 1,
+      containerNumber: 1,
+      containerKind: "pull",
       conversation: [],
       pullRequest: { title: "Big PR", body: null, changedFiles },
     });
@@ -291,14 +350,15 @@ describe("buildIssueBody", () => {
     const body = buildIssueBody({
       comment: {
         id: 1,
-        kind: "issue",
+        kind: "conversation",
         author: "octocat",
         body: "@issue-bot look at this",
         htmlUrl: "https://github.com/owner/repo/issues/53#issuecomment-1",
         createdAt: "2026-01-01T00:00:00Z",
       },
       repoFullName: "owner/repo",
-      prNumber: 53,
+      containerNumber: 53,
+      containerKind: "issue",
       conversation: [],
       parentIssue: { title: "Support filing issues from plain-issue comments", body: "Some context." },
     });
@@ -313,14 +373,15 @@ describe("buildIssueBody", () => {
     const body = buildIssueBody({
       comment: {
         id: 1,
-        kind: "issue",
+        kind: "conversation",
         author: "octocat",
         body: "@issue-bot look at this",
         htmlUrl: "https://github.com/owner/repo/issues/53#issuecomment-1",
         createdAt: "2026-01-01T00:00:00Z",
       },
       repoFullName: "owner/repo",
-      prNumber: 53,
+      containerNumber: 53,
+      containerKind: "issue",
       conversation: [],
       parentIssue: { title: "No description issue", body: null },
     });
@@ -338,7 +399,7 @@ describe("buildFiledCommentBody", () => {
 
 describe("fileIssueFromComment", () => {
   const repoFullName = "owner/repo";
-  const prNumber = 42;
+  const containerNumber = 42;
   const perPage = 100;
 
   type FakeIssue = { number: number; html_url: string; body: string | null };
@@ -407,17 +468,17 @@ describe("fileIssueFromComment", () => {
   function buildComment(id: number): TriggerComment {
     return {
       id,
-      kind: "issue",
+      kind: "conversation",
       author: "octocat",
       body: "@issue-bot this needs its own issue",
-      htmlUrl: `https://github.com/${repoFullName}/pull/${prNumber}#issuecomment-${id}`,
+      htmlUrl: `https://github.com/${repoFullName}/pull/${containerNumber}#issuecomment-${id}`,
       createdAt: "2026-01-01T00:00:00Z",
     };
   }
 
   it("finds a backlinked issue beyond the first 100-item page (regression for #1)", async () => {
     const targetCommentId = 555;
-    const backlinkBody = `Filed from ${backlinkUrl(repoFullName, prNumber, "issue", targetCommentId)}.`;
+    const backlinkBody = `Filed from ${backlinkUrl(repoFullName, containerNumber, "pull", "conversation", targetCommentId)}.`;
     // 150 open issues so the match (at index 120, i.e. issue #121) sits on
     // the second page of a per_page=100 listing.
     const openIssues: FakeIssue[] = Array.from({ length: 150 }, (_, i) => ({
@@ -429,7 +490,8 @@ describe("fileIssueFromComment", () => {
     const result = await fileIssueFromComment({
       octokit: createFakeOctokit(openIssues),
       repoFullName,
-      prNumber,
+      containerNumber,
+      containerKind: "pull",
       comment: buildComment(targetCommentId),
       conversation: [],
       mention: "@issue-bot",
@@ -452,7 +514,8 @@ describe("fileIssueFromComment", () => {
     const result = await fileIssueFromComment({
       octokit: createFakeOctokit(openIssues),
       repoFullName,
-      prNumber,
+      containerNumber,
+      containerKind: "pull",
       comment: buildComment(777),
       conversation: [],
       mention: "@issue-bot",
