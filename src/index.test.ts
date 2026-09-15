@@ -462,6 +462,26 @@ describe("handleEvent - issue_comment", () => {
     expect(result).toEqual({ filed: true, issueNumber: 12, issueUrl: createdIssue({ number: 12 }).html_url });
   });
 
+  it("does not fetch PR-only summary data (pulls.get/listFiles) for a plain-issue trigger, avoiding the 404-crash regression", async () => {
+    const comment = issueComment({ id: 5, body: `${MENTION} file this` });
+    const octokit = createFakeOctokit({
+      listComments: async () => ({ data: [] }),
+      create: async () => ({ data: createdIssue({ number: 12 }) }),
+      getPullRequest: notImplemented("pulls.get"),
+      listFiles: notImplemented("pulls.listFiles"),
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "issue_comment",
+      payload: { comment, issue: { number: 3 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS_ALLOW_PLAIN_ISSUES);
+
+    expect(result).toEqual({ filed: true, issueNumber: 12, issueUrl: createdIssue({ number: 12 }).html_url });
+  });
+
   it("files an issue for a mentioned comment on a pull request's conversation tab", async () => {
     const comment = issueComment({ id: 5, body: `${MENTION} file this` });
     const octokit = createFakeOctokit({

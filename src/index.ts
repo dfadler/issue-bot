@@ -179,7 +179,9 @@ export async function handleEvent(
     }
     const [conversation, pullRequestSummary] = await Promise.all([
       fetchRecentIssueComments(octokit, context.repo.owner, context.repo.repo, issue.number, comment.id),
-      fetchPullRequestSummary(octokit, context.repo.owner, context.repo.repo, issue.number),
+      containerKind === "pull"
+        ? fetchPullRequestSummary(octokit, context.repo.owner, context.repo.repo, issue.number)
+        : Promise.resolve(undefined),
     ]);
     const trigger: TriggerComment = {
       id: comment.id,
