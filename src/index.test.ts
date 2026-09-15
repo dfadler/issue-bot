@@ -129,7 +129,8 @@ function createdIssue(overrides: Partial<CreatedIssueApi> = {}): CreatedIssueApi
 }
 
 const baseContext = { repo: { owner: "owner", repo: "repo" } };
-const OPTIONS = { mention: MENTION, label: "" };
+const OPTIONS = { mention: MENTION, label: "", allowPlainIssues: false };
+const OPTIONS_ALLOW_PLAIN_ISSUES = { mention: MENTION, label: "", allowPlainIssues: true };
 
 describe("handleEvent - pull_request_review_comment", () => {
   it("dedups by the thread root comment id, not the triggering reply's id (regression for 218b347)", async () => {
@@ -382,7 +383,7 @@ describe("handleEvent - pull_request_review_comment", () => {
 });
 
 describe("handleEvent - issue_comment", () => {
-  it("returns null without calling anything issue-creation related when the comment is on a plain issue", async () => {
+  it("returns null without calling anything issue-creation related when the comment is on a plain issue and allow-plain-issues is false", async () => {
     const comment = issueComment({ id: 5 });
     const create = vi.fn();
     const listComments = vi.fn();
@@ -399,6 +400,66 @@ describe("handleEvent - issue_comment", () => {
     expect(result).toBeNull();
     expect(create).not.toHaveBeenCalled();
     expect(listComments).not.toHaveBeenCalled();
+  });
+
+  it("still skips a plain issue when allow-plain-issues is true but the author association is unauthorized", async () => {
+    const comment = issueComment({ id: 5, body: `${MENTION} file this`, author_association: "NONE" });
+    const create = vi.fn();
+    const listComments = vi.fn();
+    const octokit = createFakeOctokit({ create, listComments });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "issue_comment",
+      payload: { comment, issue: { number: 3 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS_ALLOW_PLAIN_ISSUES);
+
+    expect(result).toBeNull();
+    expect(create).not.toHaveBeenCalled();
+    expect(listComments).not.toHaveBeenCalled();
+  });
+
+  it("still skips a plain issue when allow-plain-issues is true but the comment author is a bot", async () => {
+    const comment = issueComment({
+      id: 5,
+      body: `${MENTION} file this`,
+      user: { login: "some-bot[bot]", type: "Bot" },
+    });
+    const create = vi.fn();
+    const listComments = vi.fn();
+    const octokit = createFakeOctokit({ create, listComments });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "issue_comment",
+      payload: { comment, issue: { number: 3 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS_ALLOW_PLAIN_ISSUES);
+
+    expect(result).toBeNull();
+    expect(create).not.toHaveBeenCalled();
+    expect(listComments).not.toHaveBeenCalled();
+  });
+
+  it("proceeds past the plain-issue gate when allow-plain-issues is true and the author is authorized", async () => {
+    const comment = issueComment({ id: 5, body: `${MENTION} file this` });
+    const octokit = createFakeOctokit({
+      listComments: async () => ({ data: [] }),
+      create: async () => ({ data: createdIssue({ number: 12 }) }),
+    });
+
+    const context: EventContext = {
+      ...baseContext,
+      eventName: "issue_comment",
+      payload: { comment, issue: { number: 3 } },
+    };
+
+    const result = await handleEvent(octokit, context, OPTIONS_ALLOW_PLAIN_ISSUES);
+
+    expect(result).toEqual({ filed: true, issueNumber: 12, issueUrl: createdIssue({ number: 12 }).html_url });
   });
 
   it("files an issue for a mentioned comment on a pull request's conversation tab", async () => {

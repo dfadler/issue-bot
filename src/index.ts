@@ -30,6 +30,7 @@ export type EventContext = {
 export type HandleEventOptions = {
   mention: string;
   label: string;
+  allowPlainIssues: boolean;
 };
 
 function reportResult(result: FileIssueResult): void {
@@ -63,7 +64,7 @@ export async function handleEvent(
   context: EventContext,
   options: HandleEventOptions,
 ): Promise<FileIssueResult | null> {
-  const { mention, label } = options;
+  const { mention, label, allowPlainIssues } = options;
   const repoFullName = `${context.repo.owner}/${context.repo.repo}`;
 
   if (context.eventName === "pull_request_review_comment") {
@@ -147,8 +148,9 @@ export async function handleEvent(
       return null;
     }
     const { comment, issue } = context.payload;
-    if (issue.pull_request === undefined) {
-      core.info("Comment is not on a pull request; skipping.");
+    const containerKind: "pull" | "issue" = issue.pull_request !== undefined ? "pull" : "issue";
+    if (containerKind === "issue" && !allowPlainIssues) {
+      core.info("Comment is on a plain issue and allow-plain-issues is not enabled; skipping.");
       return null;
     }
     if (!hasMention(comment.body, mention)) {
@@ -221,6 +223,7 @@ export async function handleEvent(
 export async function run(): Promise<void> {
   const mention = core.getInput("mention") || "@issue-bot";
   const label = core.getInput("label");
+  const allowPlainIssues = core.getBooleanInput("allow-plain-issues");
   const token = core.getInput("github-token");
   if (token.length === 0) {
     core.setFailed("No github-token input provided.");
@@ -245,7 +248,7 @@ export async function run(): Promise<void> {
     return;
   }
 
-  const result = await handleEvent(octokit, context, { mention, label });
+  const result = await handleEvent(octokit, context, { mention, label, allowPlainIssues });
   if (result) {
     reportResult(result);
   }
