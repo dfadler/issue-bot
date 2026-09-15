@@ -63,12 +63,15 @@ function associationClause(associations) {
   return associations.map((a) => `github.event.comment.author_association == '${a}'`).join(" || ");
 }
 
-function ifExpressionLines({ indent, mentionExpr, associations }) {
+function ifExpressionLines({ indent, mentionExpr, associations, allowPlainIssuesExpr }) {
   const inner = `${indent}  `;
+  const containerClause = allowPlainIssuesExpr
+    ? `(github.event_name != 'issue_comment' || github.event.issue.pull_request != null || ${allowPlainIssuesExpr}) &&`
+    : `(github.event_name != 'issue_comment' || github.event.issue.pull_request != null) &&`;
   return [
     `${indent}if: >-`,
     `${inner}contains(github.event.comment.body, ${mentionExpr}) &&`,
-    `${inner}(github.event_name != 'issue_comment' || github.event.issue.pull_request != null) &&`,
+    `${inner}${containerClause}`,
     `${inner}github.event.comment.user.type != 'Bot' &&`,
     `${inner}(${associationClause(associations)})`,
   ];
@@ -90,7 +93,12 @@ function spliceBetweenMarkers(text, label, newInnerLines) {
 }
 
 function buildReusableWorkflow(text, associations) {
-  const inner = ifExpressionLines({ indent: "    ", mentionExpr: "inputs.mention", associations });
+  const inner = ifExpressionLines({
+    indent: "    ",
+    mentionExpr: "inputs.mention",
+    associations,
+    allowPlainIssuesExpr: "inputs.allow-plain-issues == 'true'",
+  });
   return spliceBetweenMarkers(text, ".github/workflows/reusable.yml", inner);
 }
 

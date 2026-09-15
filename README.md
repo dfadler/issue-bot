@@ -1,15 +1,18 @@
 # issue-bot
 
-A GitHub Action that files a standalone issue from a pull request comment.
-Mention `@issue-bot` anywhere in a PR comment (a review comment on a
-diff line, or a general PR conversation comment) and it files an issue
+A GitHub Action that files a standalone issue from a pull request or issue
+comment. Mention `@issue-bot` anywhere in a PR comment (a review comment on
+a diff line, or a general conversation comment) — or, once opted in via
+`allow-plain-issues`, in a comment on a plain issue — and it files an issue
 capturing:
 
 - The triggering comment itself (author, body, permalink).
 - The related code, for review comments — the file path and diff hunk the
   comment is anchored to.
 - The larger conversation — every reply in that review thread, or the last
-  10 general PR comments for a conversation comment.
+  10 conversation comments for a general comment.
+- The parent PR's or parent issue's own title and description, for
+  supporting context.
 - A backlink to the source comment, used to avoid filing a duplicate issue
   if the thread gets more replies later.
 
@@ -56,9 +59,11 @@ jobs:
       - uses: dfadler/issue-bot@v1 # pin to a commit SHA instead — see note below
 ```
 
-The action itself checks whether the comment contains the mention (and, for
-`issue_comment`, whether it's actually on a PR rather than a plain issue) —
-you don't need an `if:` gate in the workflow for correctness.
+The action itself checks whether the comment contains the mention and,
+for `issue_comment`, whether the container it's actually on (a PR, or a
+plain issue — see [`allow-plain-issues`](#inputs)) is one the action is
+configured to act on — you don't need an `if:` gate in the workflow for
+correctness.
 
 That's not the same as saying you don't need one at all. Without a job-level
 `if:`, this workflow boots a full runner for *every* issue/PR comment in the
@@ -95,6 +100,16 @@ ways to avoid that, in increasing order of how much you get for free:
   match exactly (it'd let a couple more comments through the gate, e.g.
   `@issue-bot2`), but that only ever admits a few extra runs the action
   still says no to for free — it never skips a real invocation.
+
+  **If you set `allow-plain-issues: "true"`**, this generated snippet's
+  `github.event.issue.pull_request != null` clause needs a matching manual
+  edit — remove that clause from the `if:` above (or replace it with
+  `|| true`) so the cost guard doesn't filter out the plain-issue comments
+  you've just asked the action to handle. This isn't generated for you
+  because a plain copy-paste job has no `inputs.*` context to reference the
+  flag from the way the [reusable workflow](#reusable-workflow) does — if
+  you'd rather this stay in sync automatically, use the reusable workflow
+  instead.
 
 Both events also trigger on `edited`, so posting a comment and *then* editing
 it to add the mention still files an issue — not just mentioning it at
@@ -133,6 +148,7 @@ This is easy to mistake for the action silently failing to update.
 | `label`        | `from-pr-comment`       | Label applied to filed issues (auto-created if it doesn't exist). Empty to skip.   |
 | `github-token` | `${{ github.token }}`  | Token used to read comments and create issues/labels.                             |
 | `version-check` | `fail`                 | `fail`, `warn`, or `off` — what to do when this pinned release is older than the latest `dfadler/issue-bot` release. See [Version check](#version-check). |
+| `allow-plain-issues` | `false`          | Whether to also file issues from `@mention` comments on plain GitHub issues, not just pull requests. Defaults to `false` so existing consumers see no behavior change until they opt in — see the cost-guard note above and the [reusable workflow](#reusable-workflow) below. |
 
 #### Using a GitHub App token
 
@@ -277,10 +293,14 @@ jobs:
 ```
 
 The called job carries the same `if:` gate shown above, mirroring the
-action's own internal checks — a matching mention, a PR context (not a
-plain issue, for `issue_comment`), a non-bot author, and write access
+action's own internal checks — a matching mention, an allowed container
+(a PR always; a plain issue too, once `allow-plain-issues: "true"` is
+passed through `with:`), a non-bot author, and write access
 (`OWNER`/`MEMBER`/`COLLABORATOR`) — so a comment that doesn't pass never
-boots a runner at all. Everything else about it is the same action:
+boots a runner at all. Unlike the copy-paste example above, this stays in
+sync with `allow-plain-issues` automatically, since the reusable
+workflow's `if:` can reference `inputs.allow-plain-issues` directly.
+Everything else about it is the same action:
 
 - **Permissions are still yours to grant.** A called workflow doesn't
   inherit permissions from the caller automatically; set `issues: write`
