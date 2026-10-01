@@ -15,7 +15,8 @@
     "generate:cost-guard": "node scripts/generate-cost-guard.mjs",
     "check:cost-guard": "node scripts/generate-cost-guard.mjs --check",
     "generate:sha-pins": "node scripts/generate-sha-pins.mjs",
-    "check:sha-pins": "node scripts/generate-sha-pins.mjs --check"
+    "check:sha-pins": "node scripts/generate-sha-pins.mjs --check",
+    "check:action-pins": "node scripts/check-action-pin-comments.mjs"
   },
   "dependencies": {
     "@actions/core": "^3.0.1",
