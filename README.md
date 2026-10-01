@@ -166,7 +166,7 @@ and pass it as `github-token`:
     app-id: ${{ vars.APP_ID }}
     private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-- uses: dfadler/issue-bot@edaf21bd70ec0f8d4c0e3b19ff1772e6136ce509 # v1
+- uses: dfadler/issue-bot@473c2eb4abbfb2be1980251f93ac6c9b2e3997c1 # v1
   with:
     github-token: ${{ steps.app-token.outputs.token }}
 ```
@@ -226,7 +226,7 @@ transient outage upstream can't break your issue filing.
 To opt out or soften it:
 
 ```yaml
-- uses: dfadler/issue-bot@edaf21bd70ec0f8d4c0e3b19ff1772e6136ce509 # v1
+- uses: dfadler/issue-bot@473c2eb4abbfb2be1980251f93ac6c9b2e3997c1 # v1
   with:
     version-check: warn # or "off"
 ```
@@ -287,7 +287,7 @@ jobs:
       pull-requests: write
     with:
       label: "" # skip labeling
-      ref: "edaf21bd70ec0f8d4c0e3b19ff1772e6136ce509" # pin the action's own ref too — see below
+      ref: "473c2eb4abbfb2be1980251f93ac6c9b2e3997c1" # pin the action's own ref too — see below
     secrets:
       github-token: ${{ secrets.MY_TOKEN }} # defaults to the calling job's GITHUB_TOKEN
 ```
