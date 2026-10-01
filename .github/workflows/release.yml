@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   release:
@@ -88,34 +89,6 @@ jobs:
 
           echo "Released ${full}, moved ${major} to $(git rev-parse HEAD)"
 
-      # The release commit above can't reference its own hash (it doesn't
-      # exist yet while that commit is being written), so README.md's pins
-      # can't be updated as part of it. Once the tags above exist, though,
-      # the SHA they point to is known - this rewrites README.md's own
-      # examples to it in a separate, later commit pushed straight to
-      # `main` (not the release ref), via scripts/generate-sha-pins.mjs.
-      # HEAD at this point is the detached release commit made above (which
-      # bundles dist/index.js); check out main fresh rather than committing
-      # on top of that, or the release commit would land on main too.
-      - name: Update README's pinned commit SHAs on main
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-
-          git fetch origin main
-          git checkout -B main origin/main
-
-          npm run generate:sha-pins
-
-          if git diff --quiet -- README.md; then
-            echo "README.md already up to date; nothing to commit."
-          else
-            git add README.md
-            git commit -m "docs: update README's pinned commit SHAs for v${VERSION}"
-            git push origin main
-          fi
-
       # This publishes the ready-to-paste line with the release commit's
       # SHA as a GitHub Release too, for pinning to *that specific* release
       # later rather than always tracking the latest `v1` shown in README.md.
@@ -128,9 +101,6 @@ jobs:
 
           major="v${VERSION%%.*}"
           full="v${VERSION}"
-          # Not `git rev-parse HEAD`: the prior step checks out `main` to
-          # commit the README update, which moves HEAD off the release
-          # commit. The tag itself still points at it either way.
           release_sha=$(git rev-parse "$full")
           notes_file=$(mktemp)
 
@@ -166,3 +136,42 @@ jobs:
           fi
 
           echo "Published GitHub Release ${full} pinned to ${release_sha}"
+
+      # The release commit above can't reference its own hash (it doesn't
+      # exist yet while that commit is being written), so README.md's pins
+      # can't be updated as part of it. Once the tags above exist, the SHA
+      # they point to is known - this rewrites README.md's own examples to it
+      # via scripts/generate-sha-pins.mjs and opens a PR with the result,
+      # because `main` is protected and rejects direct pushes.
+      #
+      # Runs after the GitHub Release step and is non-fatal: a failure here
+      # (e.g. the repo disallowing Actions-created PRs) must not mask a
+      # release that otherwise published. PRs opened with GITHUB_TOKEN don't
+      # trigger required status checks - push an empty commit to the
+      # branch (or close/reopen the PR) to run them before merging.
+      - name: Open PR updating README's pinned commit SHAs
+        continue-on-error: true
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # HEAD is the detached release commit (which bundles dist/index.js);
+          # branch from main fresh so that commit doesn't land in the PR.
+          git fetch origin main
+          git checkout -B "chore/readme-pins-v${VERSION}" origin/main
+
+          npm run generate:sha-pins
+
+          if git diff --quiet -- README.md; then
+            echo "README.md already up to date; nothing to commit."
+          else
+            git add README.md
+            git commit -m "docs: update README's pinned commit SHAs for v${VERSION}"
+            git push origin "chore/readme-pins-v${VERSION}" --force
+            gh pr create --repo "${{ github.repository }}" \
+              --base main --head "chore/readme-pins-v${VERSION}" \
+              --title "docs: update README's pinned commit SHAs for v${VERSION}" \
+              --body "Automated by the Release workflow."
+          fi
