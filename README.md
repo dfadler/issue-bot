@@ -392,11 +392,12 @@ two more things with it:
   `uses:` line (and the reusable-workflow equivalent) — useful for pinning
   to that specific release later, rather than always tracking latest `v1`.
 - Runs `npm run generate:sha-pins` (see [Development](#development)) and
-  pushes a follow-up commit to `main` that rewrites README.md's own
-  `uses:`/`ref:` examples to that same SHA — a separate, later commit than
-  the release commit itself, so no self-reference problem — so the
-  copy-pasteable examples throughout this doc always show the current
-  `v1` pin without you having to open a Release page.
+  opens a PR (`main` is protected, so it can't push directly) that rewrites
+  README.md's own `uses:`/`ref:` examples to that same SHA — a separate,
+  later commit than the release commit itself, so no self-reference
+  problem. This step runs after the Release is published and is
+  non-fatal. PRs opened with `GITHUB_TOKEN` don't trigger required checks,
+  so push an empty commit to the PR branch to run them before merging.
 
 Re-running the workflow for an already-released version updates both the
-Release notes and the README commit in place rather than failing.
+Release notes and the README PR branch in place rather than failing.
