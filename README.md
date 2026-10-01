@@ -348,6 +348,14 @@ shouldn't normally need to run it by hand. `npm run check:sha-pins` (part
 of CI) fails if README.md ever falls out of sync with the tags it
 references.
 
+Third-party actions in `.github/` and `action.yml` are pinned the same way
+(`uses: owner/repo@<sha> # vX.Y.Z`). `npm run check:action-pins` (part of CI)
+fails if a version comment names a tag that doesn't point at its SHA, is
+missing, or if an action is pinned to a mutable tag or branch instead.
+`npm run check:action-pins -- --fix` corrects a wrong comment (never the
+SHA). The `pin-action-sha` skill in `.claude/skills/` describes how to add
+or bump a pin.
+
 `npm run build` on its own produces a *dev build*: `scripts/build.mjs`
 stamps an empty release version into the bundle, so the runtime
 [version check](#version-check) warns and skips itself. To build the way
