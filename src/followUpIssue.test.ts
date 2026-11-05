@@ -158,6 +158,12 @@ describe("buildIssueTitle", () => {
     );
   });
 
+  it("treats a bare 'please create a follow up issue' as the imperative, not the title", () => {
+    expect(buildIssueTitle("@issue-bot Please create a follow up issue\r\n> ", "@issue-bot")).toBe(
+      "Follow-up from comment",
+    );
+  });
+
   it("does not strip 'issue' when it isn't followed by a filing preposition", () => {
     expect(buildIssueTitle("@issue-bot create an issue tracker for this repo", "@issue-bot")).toBe(
       "create an issue tracker for this repo",
