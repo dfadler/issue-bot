@@ -111,7 +111,7 @@ function truncate(text: string, maxChars: number): string {
  * issue tracker" that happen to contain "issue" without describing a filing request.
  */
 const FILING_IMPERATIVE_PATTERN =
-  /^(?:please\s+)?(?:file|create|open|log|make)\s+(?:an?\s+)?(?:follow[\s-]?up\s+)?issue(?:\s+(?:to|for|about|regarding)\s*|\s*[.!]?\s*$)/i;
+  /^(?:please\s+)?(?:file|create|open|log|make)\s+(?:an?\s+)?(?:follow[\s-]?up\s+)?issue(?:\s+(?:to|for|about|regarding)\s*|\s*[.!?]?\s*$)/i;
 
 /**
  * Title is derived deterministically from the comment text - no LLM call
