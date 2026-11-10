@@ -106,11 +106,12 @@ function truncate(text: string, maxChars: number): string {
  * Matches a leading "please file/create/open/log/make an issue to/for/about/regarding"
  * so the title reflects the work being requested rather than the request to file an
  * issue itself (see https://github.com/dfadler/issue-bot/issues/36). The preposition
- * is required (not optional) so this doesn't false-positive on phrases like "create an
+ * is required unless the request ends right after "issue" (e.g. "create a follow up
+ * issue", which leaves nothing to title and falls back), so this doesn't false-positive on phrases like "create an
  * issue tracker" that happen to contain "issue" without describing a filing request.
  */
 const FILING_IMPERATIVE_PATTERN =
-  /^(?:please\s+)?(?:file|create|open|log|make)\s+(?:an?\s+)?issue\s+(?:to|for|about|regarding)\s*/i;
+  /^(?:please\s+)?(?:file|create|open|log|make)\s+(?:an?\s+)?(?:follow[\s-]?up\s+)?issue(?:\s+(?:to|for|about|regarding)\s*|\s*[.!?]?\s*$)/i;
 
 /**
  * Title is derived deterministically from the comment text - no LLM call
